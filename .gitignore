@@ -1,0 +1,12 @@
+# Environment secrets
+.env
+
+# Generated data files
+news.xlsx
+news_backup.csv
+~$*.xlsx
+
+# Python
+__pycache__/
+*.pyc
+.venv/

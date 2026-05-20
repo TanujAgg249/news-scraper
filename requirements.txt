@@ -1,0 +1,6 @@
+requests
+pandas
+openpyxl
+schedule
+python-dotenv
+google-generativeai
