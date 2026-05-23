@@ -43,6 +43,11 @@ THIN_BORDER = Border(
     bottom=Side(style="thin", color="D0D5DD"),
 )
 
+# Oil impact colour fills
+BULLISH_FILL = PatternFill(start_color="E6F4EA", end_color="E6F4EA", fill_type="solid")  # Light green
+BEARISH_FILL = PatternFill(start_color="FCE8E6", end_color="FCE8E6", fill_type="solid")  # Light red
+NEUTRAL_FILL = PatternFill(start_color="FEF7E0", end_color="FEF7E0", fill_type="solid")  # Light yellow/orange
+
 # Dashboard styles
 DASH_BG = PatternFill(start_color="0D1B2A", end_color="0D1B2A", fill_type="solid")      # Dark navy
 DASH_ACCENT = PatternFill(start_color="1B263B", end_color="1B263B", fill_type="solid")    # Slightly lighter
@@ -78,7 +83,7 @@ def _load_existing() -> pd.DataFrame:
     # Return empty DataFrame with expected columns
     return pd.DataFrame(columns=[
         "headline", "description", "source", "published_at", "url",
-        "fetched_at", "matched_keywords"
+        "fetched_at", "matched_keywords", "oil_impact", "impact_reason"
     ])
 
 
@@ -202,15 +207,45 @@ def _apply_styling(df: pd.DataFrame, oil_price_data: dict | None = None):
             cell.alignment = HEADER_ALIGNMENT
             cell.border = THIN_BORDER
 
-        # Style data rows with alternating colours
+        # Find special column indices
+        headers = [cell.value for cell in ws[1]]
+        url_col_idx = None
+        impact_col_idx = None
+        if "url" in headers:
+            url_col_idx = headers.index("url") + 1  # 1-indexed
+        if "oil_impact" in headers:
+            impact_col_idx = headers.index("oil_impact") + 1
+
+        # Style data rows with alternating colours (+ oil impact color-coding)
         for row_num in range(2, ws.max_row + 1):
-            fill = ROW_FILL_EVEN if row_num % 2 == 0 else ROW_FILL_ODD
+            # Check if this row has an oil_impact value for color-coding
+            row_fill = ROW_FILL_EVEN if row_num % 2 == 0 else ROW_FILL_ODD
+            if impact_col_idx:
+                impact_value = str(ws.cell(row=row_num, column=impact_col_idx).value or "").strip()
+                if impact_value == "Bullish":
+                    row_fill = BULLISH_FILL
+                elif impact_value == "Bearish":
+                    row_fill = BEARISH_FILL
+                elif impact_value == "Neutral":
+                    row_fill = NEUTRAL_FILL
+
             for col_num in range(1, ws.max_column + 1):
                 cell = ws.cell(row=row_num, column=col_num)
-                cell.fill = fill
+                cell.fill = row_fill
                 cell.font = CELL_FONT
                 cell.alignment = CELL_ALIGNMENT
                 cell.border = THIN_BORDER
+
+                # Make URLs clickable hyperlinks
+                if col_num == url_col_idx and cell.value:
+                    url = str(cell.value).strip()
+                    if url.startswith("http"):
+                        cell.hyperlink = url
+                        cell.font = Font(
+                            size=10, name="Calibri",
+                            color="1155CC", underline="single"
+                        )
+                        cell.value = url
 
         # Set column widths
         column_widths = {
@@ -221,6 +256,8 @@ def _apply_styling(df: pd.DataFrame, oil_price_data: dict | None = None):
             "url": 40,
             "fetched_at": 20,
             "matched_keywords": 25,
+            "oil_impact": 15,
+            "impact_reason": 50,
         }
 
         headers = [cell.value for cell in ws[1]]

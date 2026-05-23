@@ -3,4 +3,5 @@ pandas
 openpyxl
 schedule
 python-dotenv
-google-generativeai
+google-genai
+yfinance

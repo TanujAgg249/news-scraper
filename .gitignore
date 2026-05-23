@@ -10,3 +10,6 @@ news_backup.csv
 __pycache__/
 *.pyc
 .venv/
+
+# Package manager
+uv.lock

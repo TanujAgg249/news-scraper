@@ -5,12 +5,11 @@ main.py - Entry Point for the Russia-Ukraine War News Scraper
 This is the main file that:
 1. Loads environment variables (API keys) from .env
 2. Fetches news articles from NewsAPI (last 24 hours only)
-3. Fetches live Brent Crude oil price
-4. Saves results to a styled Excel file with a dashboard
-5. Auto-deletes articles older than 24 hours
-6. Schedules the cycle to repeat every hour
-
-Run with: python main.py
+3. Analyses each article's oil-market impact via Gemini AI
+4. Fetches live Brent Crude oil price
+5. Saves results to a styled Excel file with a dashboard
+6. Auto-deletes articles older than 24 hours
+7. Schedules the cycle to repeat every hour
 """
 
 import time
@@ -18,7 +17,7 @@ import schedule
 from dotenv import load_dotenv
 
 from scraper.fetcher import fetch_news
-# from scraper.analyzer import analyze_oil_impact  # Temporarily disabled — re-enable when Gemini quota resets
+from scraper.analyzer import analyze_oil_impact
 from scraper.oil_price import get_brent_crude_price
 from scraper.storage import save_to_excel, export_backup_csv
 from scraper.config import FETCH_INTERVAL_MINUTES, SEARCH_QUERY, KEYWORD_FILTERS
@@ -46,8 +45,7 @@ def job():
         return
 
     # Step 2: Analyze oil market impact using Gemini AI
-    # TODO: Re-enable when Gemini API quota resets
-    # articles = analyze_oil_impact(articles)
+    articles = analyze_oil_impact(articles)
 
     # Step 3: Fetch live Brent Crude oil price
     oil_price = get_brent_crude_price()

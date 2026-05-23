@@ -1,12 +1,11 @@
 [project]
 name = "news-scraper"
 version = "0.1.0"
-description = "Add your description here"
+description = "Automated Russia-Ukraine war news scraper with AI-powered oil market impact analysis and live Brent Crude dashboard"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "google-genai>=2.4.0",
-    "google-generativeai>=0.8.6",
     "openpyxl>=3.1.5",
     "pandas>=3.0.3",
     "python-dotenv>=1.2.2",

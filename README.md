@@ -1,6 +1,19 @@
 # 📰 Russia-Ukraine War News Scraper
 
-An automated Python tool that fetches the latest news articles about the Russia-Ukraine war from [NewsAPI](https://newsapi.org/) and stores them in an Excel spreadsheet — continuously, every hour.
+An automated Python tool that scrapes the latest Russia-Ukraine war news, analyzes each article's impact on oil markets using **Google Gemini AI**, and outputs a professionally styled Excel file with a **live Brent Crude oil price dashboard**.
+
+---
+
+## ✨ Features
+
+- 🌐 **Automated news fetching** — Pulls articles from 7,000+ sources via [NewsAPI](https://newsapi.org/)
+- 🧠 **AI-powered oil market analysis** — Google Gemini classifies each article as Bullish 🟢, Bearish 🔴, or Neutral 🟠 for oil markets
+- 🛢️ **Live Brent Crude dashboard** — Dark-themed Excel dashboard with real-time oil price, daily change, and trend indicators
+- 🎨 **Color-coded Excel output** — Rows are colored green/red/yellow based on oil market impact
+- 🔗 **Clickable article links** — URLs in Excel are proper hyperlinks
+- 🗑️ **Auto-cleanup** — Articles older than 24 hours are automatically removed
+- 🔄 **Hourly scheduling** — Runs continuously, fetching fresh data every hour
+- 📁 **CSV backup** — Automatic backup in universal CSV format
 
 ---
 
@@ -8,81 +21,107 @@ An automated Python tool that fetches the latest news articles about the Russia-
 
 ```
 news-scraper/
-├── main.py                # Entry point — run this to start the scraper
+├── main.py                    # Entry point — run this to start the scraper
 ├── scraper/
-│   ├── __init__.py        # Package marker
-│   ├── config.py          # All settings & constants (edit here to customize)
-│   ├── fetcher.py         # Talks to NewsAPI, parses responses
-│   └── storage.py         # Saves to Excel, handles deduplication, CSV backup
-├── .env                   # Your API key (never commit this!)
-├── .gitignore             # Keeps secrets & data files out of Git
-├── requirements.txt       # Pip dependencies
-├── pyproject.toml         # Project metadata (uv/pip)
-└── README.md              # You're reading this
+│   ├── __init__.py            # Package marker
+│   ├── config.py              # All settings & constants (single source of truth)
+│   ├── fetcher.py             # Talks to NewsAPI, parses responses, tags keywords
+│   ├── analyzer.py            # Gemini AI oil market impact classifier
+│   ├── oil_price.py           # Fetches live Brent Crude price from Yahoo Finance
+│   └── storage.py             # Excel/CSV output, styling, dashboard, cleanup
+├── .env                       # Your API keys (never committed to git)
+├── .gitignore                 # Keeps secrets & data files out of Git
+├── requirements.txt           # Pip dependencies
+├── pyproject.toml             # Project metadata (uv/pip)
+└── README.md                  # This file
 ```
 
 **Generated at runtime:**
-- `news.xlsx` — The main output file with all articles
-- `news_backup.csv` — Automatic CSV backup
+- `news.xlsx` — The main output: styled Excel with Dashboard + Articles sheets
+- `news_backup.csv` — Automatic CSV backup of article data
 
 ---
 
 ## 🚀 Setup & Installation
 
-### Step 1: Get a NewsAPI Key (Free)
+### Prerequisites
 
-1. Go to [https://newsapi.org/register](https://newsapi.org/register)
-2. Sign up for a free account
-3. Copy your API key from the dashboard
+- **Python 3.11+** installed
+- **[uv](https://docs.astral.sh/uv/)** package manager (recommended) or pip
 
-### Step 2: Add Your API Key
+### Step 1: Clone the Repository
 
-Open the `.env` file and replace the placeholder:
-
-```env
-NEWSAPI_KEY=paste_your_actual_key_here
+```bash
+git clone https://github.com/YOUR_USERNAME/news-scraper.git
+cd news-scraper
 ```
 
-### Step 3: Install Dependencies
+### Step 2: Get Your API Keys (Free)
 
-If you're using `uv` (recommended):
+You need **two** API keys:
+
+| Key | Where to Get It | Free Tier |
+|-----|----------------|-----------|
+| **NewsAPI** | [newsapi.org/register](https://newsapi.org/register) | 100 requests/day |
+| **Google Gemini** | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | 15 requests/min |
+
+### Step 3: Create Your `.env` File
+
+Create a file called `.env` in the project root:
+
+```env
+# Get your free API key from: https://newsapi.org/register
+NEWSAPI_KEY=paste_your_newsapi_key_here
+
+# Google Gemini API key for oil market impact analysis
+# Get yours from: https://aistudio.google.com/apikey
+GEMINI_API_KEY=paste_your_gemini_key_here
+```
+
+### Step 4: Install Dependencies
+
+Using **uv** (recommended):
 ```bash
 uv sync
 ```
 
-Or with pip:
+Or using **pip**:
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 4: Run the Scraper
+### Step 5: Run the Scraper
 
+```bash
+uv run python main.py
+```
+
+Or with pip:
 ```bash
 python main.py
 ```
 
-That's it! The scraper will:
-1. Fetch articles **immediately**
-2. Then repeat **every 60 minutes**
-3. Press `Ctrl+C` to stop
+Press **Ctrl+C** to stop.
 
 ---
 
 ## ⚙️ How It Works
 
-### The Automation Loop
+### The Pipeline (every cycle)
 
 ```
-START → Fetch from NewsAPI → Deduplicate → Save to Excel → Export CSV → WAIT 60 min → REPEAT
+Fetch Articles → AI Impact Analysis → Fetch Oil Price → Save to Excel → Export CSV → Wait 60 min → Repeat
 ```
 
-1. **`main.py`** loads your API key from `.env` and starts the scheduler
-2. Every cycle, **`fetcher.py`** sends a request to NewsAPI searching for "Russia Ukraine war"
-3. The response is parsed — extracting headline, source, timestamp, URL
-4. Articles are tagged with matching keywords (oil, sanctions, NATO, etc.)
-5. **`storage.py`** loads the existing Excel file, removes duplicates, and saves
-6. A CSV backup is automatically created
-7. The scheduler (`schedule` library) waits 60 minutes, then repeats
+1. **`main.py`** loads API keys from `.env` and starts the scheduler
+2. **`fetcher.py`** sends a request to NewsAPI for "Russia Ukraine war" articles
+3. Articles are parsed — extracting headline, description, source, timestamp, URL
+4. Each article is tagged with matching keywords (oil, sanctions, NATO, etc.)
+5. **`analyzer.py`** sends each article to Google Gemini to classify its oil market impact as Bullish, Bearish, or Neutral
+6. **`oil_price.py`** fetches the live Brent Crude price from Yahoo Finance
+7. **`storage.py`** loads existing data, removes articles older than 24h, deduplicates, and saves everything to a styled Excel file with a dark-themed dashboard
+8. A CSV backup is automatically created
+9. The scheduler waits 60 minutes, then repeats from step 2
 
 ### Duplicate Prevention
 
@@ -91,9 +130,21 @@ Every article has a **headline** and a **URL**. Before saving:
 - If a new article's headline OR URL already exists → **it's skipped**
 - This means even if the same article appears across multiple API calls, it only gets saved **once**
 
-### Keyword Filtering
+### Keyword Tagging
 
-Articles are checked against these keywords: `oil`, `sanctions`, `NATO`, `Zelensky`, `Putin`. Matches are saved in the `matched_keywords` column so you can filter in Excel.
+Articles are checked against these keywords: `oil`, `sanctions`, `NATO`, `Zelensky`, `Putin`, `Drones`. Matches are saved in the `matched_keywords` column so you can filter in Excel. **Note:** this does NOT filter articles out — all articles are kept regardless of keyword matches.
+
+### AI Oil Market Impact Analysis
+
+Each article is sent to Google Gemini with a prompt that asks it to classify the article's likely impact on crude oil prices:
+
+| Classification | Meaning | Row Color |
+|---------------|---------|-----------|
+| 🟢 **Bullish** | Likely to push oil prices **UP** (e.g., supply disruptions, sanctions) | Green |
+| 🔴 **Bearish** | Likely to push oil prices **DOWN** (e.g., ceasefire, demand reduction) | Red |
+| 🟠 **Neutral** | No significant direct impact on oil prices | Yellow |
+
+The analyzer includes automatic retry logic with exponential backoff for rate limits.
 
 ---
 
@@ -102,11 +153,14 @@ Articles are checked against these keywords: `oil`, `sanctions`, `NATO`, `Zelens
 | Column | Description |
 |--------|-------------|
 | `headline` | Article title |
-| `source` | Publisher name (BBC, Reuters, etc.) |
+| `description` | Article summary/snippet |
+| `source` | Publisher name (BBC, Reuters, Al Jazeera, etc.) |
 | `published_at` | When the article was published |
-| `url` | Direct link to the full article |
+| `url` | Clickable link to the full article |
 | `fetched_at` | When our scraper grabbed it |
-| `matched_keywords` | Which filter keywords matched (e.g. "NATO, Putin") |
+| `matched_keywords` | Which keywords matched (e.g., "NATO, Putin") |
+| `oil_impact` | AI classification: Bullish, Bearish, or Neutral |
+| `impact_reason` | AI's one-sentence explanation for the classification |
 
 ---
 
@@ -116,64 +170,51 @@ All settings are in **`scraper/config.py`**:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `SEARCH_QUERY` | `"Russia Ukraine war"` | The search term |
-| `KEYWORD_FILTERS` | `["oil", "sanctions", ...]` | Keywords to tag |
-| `FETCH_INTERVAL_MINUTES` | `60` | How often to fetch |
-| `PAGE_SIZE` | `50` | Articles per API call |
+| `SEARCH_QUERY` | `"Russia Ukraine war"` | The search term sent to NewsAPI |
+| `KEYWORD_FILTERS` | `["oil", "sanctions", ...]` | Keywords to tag articles with |
+| `FETCH_INTERVAL_MINUTES` | `60` | How often to fetch (minutes) |
+| `MAX_ARTICLE_AGE_HOURS` | `24` | Auto-delete articles older than this |
+| `PAGE_SIZE` | `50` | Articles per API call (max 100) |
+| `GEMINI_MODEL` | `"gemini-2.0-flash"` | Which Gemini model to use |
 
 ---
 
 ## 🛡️ Error Handling
 
-The scraper handles these gracefully:
-- **No internet** → Logs error, skips cycle, tries again next hour
-- **API key invalid** → Clear error message telling you to check `.env`
-- **API rate limit** → Logs the API error message
-- **Empty responses** → Logs info, skips saving
-- **Excel file locked** → Tells you to close it and retries next cycle
+| Scenario | What Happens |
+|----------|-------------|
+| No internet | Logs error, skips cycle, retries next hour |
+| Invalid API key | Clear error message pointing to `.env` |
+| NewsAPI rate limit | Logs the API error, retries next cycle |
+| Gemini rate limit | Retries 3x with backoff (15s, 30s, 45s) |
+| Excel file open | Tells you to close it, retries next cycle |
+| Yahoo Finance down | Dashboard shows "Price unavailable" |
 
 ---
 
-## 🧪 Required Libraries
+## 📦 Dependencies
 
 | Library | Purpose |
 |---------|---------|
 | `requests` | HTTP calls to NewsAPI |
-| `pandas` | DataFrame manipulation & Excel handling |
-| `openpyxl` | Excel file read/write engine |
-| `schedule` | Simple job scheduling (every N minutes) |
-| `python-dotenv` | Load `.env` file into environment variables |
+| `pandas` | DataFrame manipulation & Excel I/O |
+| `openpyxl` | Excel file styling, hyperlinks, formatting |
+| `schedule` | Lightweight job scheduling |
+| `python-dotenv` | Loads `.env` file into environment variables |
+| `google-genai` | Google Gemini AI for oil impact analysis |
+| `yfinance` | Live Brent Crude oil price from Yahoo Finance |
 
 ---
 
-## 🚀 Extending Into an AI News Intelligence System
+## 📝 Notes
 
-This scraper is the **data collection layer**. Here's how to build on top of it:
-
-### Phase 2: Sentiment Analysis
-- Use `TextBlob` or `transformers` to analyze headline sentiment
-- Add a `sentiment_score` column (-1 to +1)
-- Track how media tone changes over time
-
-### Phase 3: Summarization
-- Use OpenAI API or Hugging Face models to auto-summarize articles
-- Generate daily briefings from collected articles
-
-### Phase 4: Trend Detection
-- Use `matplotlib` or `plotly` to chart article volume over time
-- Detect spikes in coverage → major events happening
-
-### Phase 5: Dashboard
-- Build a Streamlit or Flask dashboard
-- Show real-time article counts, keyword trends, sentiment graphs
-- Add search and filter capabilities
-
-### Phase 6: Alerts
-- Send Telegram/email alerts when a spike or specific keyword is detected
-- Useful for analysts tracking geopolitical developments
+- **NewsAPI free tier** is limited to 100 requests/day and does not support commercial use
+- **Gemini free tier** allows ~15 requests/minute — the analyzer includes 5-second delays between requests to stay within this limit
+- The `.env` file containing your API keys is **never committed** to git (protected by `.gitignore`)
+- Output files (`news.xlsx`, `news_backup.csv`) are also excluded from git
 
 ---
 
-## 📝 License
+## 📄 License
 
-This project is for educational and personal use. NewsAPI free tier is limited to 100 requests/day and does not support commercial use.
+This project is for educational and personal use.

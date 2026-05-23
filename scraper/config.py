@@ -11,7 +11,7 @@ Nothing is hardcoded inside the other modules.
 SEARCH_QUERY = "Russia Ukraine war"
 
 # Optional keyword filters — articles matching ANY of these get a tag
-KEYWORD_FILTERS = ["oil", "sanctions", "NATO", "Zelensky", "Putin"]
+KEYWORD_FILTERS = ["oil", "sanctions", "NATO", "Zelensky", "Putin", "Drones"]
 
 # --- Scheduling ---
 # How often to fetch news (in minutes). 60 = every 1 hour.
