@@ -13,3 +13,9 @@ __pycache__/
 
 # Package manager
 uv.lock
+
+# Backend database files (generated at runtime)
+backend/*.db
+
+# macOS
+.DS_Store
