@@ -1,6 +1,8 @@
 """
-Sentence-transformers embeddings for article similarity.
-Uses all-MiniLM-L6-v2 with lazy singleton loading.
+Embeddings for article similarity.
+Uses sentence-transformers (all-MiniLM-L6-v2) when available, falls back to
+lightweight TF-IDF keyword-based similarity for cloud deployments where
+PyTorch is too heavy.
 """
 
 import os
@@ -20,12 +22,13 @@ from app.config import settings
 # ---------------------------------------------------------------------------
 _model = None
 _model_failed = False
+_use_lightweight = os.environ.get("RENDER") == "true"
 
 
 def _get_model():
     """Load the sentence-transformer model on first use."""
     global _model, _model_failed
-    if _model_failed:
+    if _use_lightweight or _model_failed:
         return None
     if _model is None:
         try:
@@ -41,23 +44,59 @@ def _get_model():
 
 
 # ---------------------------------------------------------------------------
+# Lightweight TF-IDF-like embedding (no external ML dependencies)
+# ---------------------------------------------------------------------------
+
+_EMBED_DIM = 384  # Same dimension as MiniLM-L6-v2 for consistency
+
+def _lightweight_embedding(text: str) -> np.ndarray:
+    """
+    Generate a simple bag-of-words hash-based embedding.
+    Uses hashing trick to map words to a fixed-size vector.
+    Not as good as sentence-transformers, but works without PyTorch.
+    """
+    import re
+    words = re.findall(r'\b[a-zA-Z]{2,}\b', text.lower())
+    vec = np.zeros(_EMBED_DIM, dtype=np.float32)
+    for word in words:
+        # Hash each word to a position in the vector
+        idx = hash(word) % _EMBED_DIM
+        vec[idx] += 1.0
+    # Normalise to unit vector
+    norm = np.linalg.norm(vec)
+    if norm > 0:
+        vec /= norm
+    return vec
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 def generate_embedding(text: str) -> Optional[bytes]:
     """
     Generate an embedding for the given text.
-    Returns the embedding as pickled numpy array bytes, or None if model unavailable.
+    Returns the embedding as pickled numpy array bytes, or None if unavailable.
     """
     model = _get_model()
-    if model is None:
-        return None
-    try:
-        embedding: np.ndarray = model.encode(text, convert_to_numpy=True)
-        return pickle.dumps(embedding)
-    except Exception as exc:
-        print(f"[Embeddings] Encoding failed: {exc}")
-        return None
+    if model is not None:
+        try:
+            embedding: np.ndarray = model.encode(text, convert_to_numpy=True)
+            return pickle.dumps(embedding)
+        except Exception as exc:
+            print(f"[Embeddings] Encoding failed: {exc}")
+            return None
+
+    # Lightweight fallback
+    if _use_lightweight or _model_failed:
+        try:
+            embedding = _lightweight_embedding(text)
+            return pickle.dumps(embedding)
+        except Exception as exc:
+            print(f"[Embeddings] Lightweight encoding failed: {exc}")
+            return None
+
+    return None
 
 
 def unpickle_embedding(data: bytes) -> Optional[np.ndarray]:
@@ -86,12 +125,12 @@ def compute_similarity_matrix(embeddings_bytes: list[bytes]) -> np.ndarray:
             vectors.append(vec.flatten())
         else:
             # Insert zero vector as placeholder
-            vectors.append(np.zeros(384))  # MiniLM-L6-v2 outputs 384-dim
+            vectors.append(np.zeros(_EMBED_DIM))
 
     if len(vectors) == 0:
         return np.array([])
 
-    matrix = np.vstack(vectors)  # shape: (N, 384)
+    matrix = np.vstack(vectors)  # shape: (N, dim)
 
     # Normalise each row to unit length
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)

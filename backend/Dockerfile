@@ -12,14 +12,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Use deploy-requirements.txt which excludes heavy ML libs (sentence-transformers/PyTorch)
+COPY deploy-requirements.txt .
+RUN pip install --no-cache-dir -r deploy-requirements.txt
 
 # Copy application code
 COPY . .
 
 # Render sets the PORT environment variable — default to 8000 for local use
 ENV PORT=8000
+
+# Mark this as a cloud deployment (disables heavy ML models)
+ENV RENDER=true
 
 # Run the FastAPI app with uvicorn
 CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
