@@ -36,7 +36,8 @@ const NewsGraph3D = memo(function NewsGraph3D({
   const autoRotateTimeoutRef = useRef(null);
   const cacheRef = useRef(new Map());
   // Track pinned (dragged) node positions
-  const pinnedPositionsRef = useRef(new Map());
+  const [hasPinnedNodes, setHasPinnedNodes] = useState(false);
+  const pinnedSetRef = useRef(new Set());
 
   // Resize observer
   useEffect(() => {
@@ -101,6 +102,10 @@ const NewsGraph3D = memo(function NewsGraph3D({
       }
     };
   }, [graphData]);
+
+  // Whenever graphData changes, we need to tell ForceGraph to update nodes
+  // because their properties (like oil_impact) might have changed from a refetch.
+  const updateTrigger = graphData ? graphData.nodes.map(n => n.oil_impact).join(',') : '';
 
   // Cleanup cached geometries/materials on unmount
   useEffect(() => {
@@ -187,7 +192,8 @@ const NewsGraph3D = memo(function NewsGraph3D({
     node.fy = node.y;
     node.fz = node.z;
     // Track it so we can reset later
-    pinnedPositionsRef.current.set(node.id, { fx: node.x, fy: node.y, fz: node.z });
+    pinnedSetRef.current.add(node.id);
+    setHasPinnedNodes(true);
   }, []);
 
   // Reset all pinned positions and reheat the simulation
@@ -196,11 +202,12 @@ const NewsGraph3D = memo(function NewsGraph3D({
     if (!fg) return;
     // Unpin all nodes
     graphData.nodes.forEach((node) => {
-      node.fx = undefined;
-      node.fy = undefined;
-      node.fz = undefined;
+      delete node.fx;
+      delete node.fy;
+      delete node.fz;
     });
-    pinnedPositionsRef.current.clear();
+    pinnedSetRef.current.clear();
+    setHasPinnedNodes(false);
     // Reheat the simulation to let nodes settle naturally
     fg.d3ReheatSimulation();
   }, [graphData]);
@@ -250,7 +257,7 @@ const NewsGraph3D = memo(function NewsGraph3D({
 
       return mesh;
     },
-    [selectedNodeId]
+    [selectedNodeId, updateTrigger]
   );
 
   const linkColor = useCallback((link) => {
@@ -353,7 +360,7 @@ const NewsGraph3D = memo(function NewsGraph3D({
       )}
 
       {/* Reset Layout Button */}
-      {pinnedPositionsRef.current.size > 0 && (
+      {hasPinnedNodes && (
         <button className="graph-reset-btn" onClick={handleResetLayout} title="Reset all nodes to default positions">
           ↺ Reset Layout
         </button>
