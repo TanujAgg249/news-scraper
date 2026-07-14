@@ -5,7 +5,7 @@ API router: Topics — CRUD endpoints for managing news topics.
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -140,129 +140,138 @@ def delete_topic(topic_id: str, db: Session = Depends(get_db)):
     return None
 
 
-@router.post("/{topic_id}/scrape")
-def scrape_topic(topic_id: str, db: Session = Depends(get_db)):
-    """Manually trigger a scrape for a specific topic."""
+def _run_background_scrape(topic_id: str):
+    """Background task to run the scrape cycle without blocking the HTTP response."""
+    from app.database import SessionLocal
     import asyncio
     from app.scraper.crawler import fetch_articles_for_topic
     from app.analysis.classifier import classify_batch
     from app.analysis.embeddings import generate_embedding
-    from datetime import datetime, timezone
+    
+    db = SessionLocal()
+    try:
+        topic = db.query(Topic).filter(Topic.id == topic_id).first()
+        if not topic:
+            return
 
+        print(f"[Topics] Background manual scrape started for: {topic.name}")
+
+        # Fetch articles
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            fetched = loop.run_until_complete(fetch_articles_for_topic(topic))
+        finally:
+            loop.close()
+
+        new_articles = []
+        for art in fetched:
+            existing = db.query(Article).filter(Article.url == art["url"]).first()
+            
+            # Keyword matching
+            kw_list = []
+            if topic.keywords:
+                try:
+                    kw_list = json.loads(topic.keywords)
+                except (json.JSONDecodeError, TypeError):
+                    kw_list = []
+            matched = []
+            combined_text = f"{art['headline']} {art.get('description', '') or ''}".lower()
+            for kw in kw_list:
+                if kw.lower() in combined_text:
+                    matched.append(kw)
+            matched_str = ", ".join(matched) if matched else None
+                    
+            if existing:
+                assoc_exists = db.query(ArticleTopic).filter(
+                    ArticleTopic.article_id == existing.id,
+                    ArticleTopic.topic_id == topic.id
+                ).first()
+                if not assoc_exists:
+                    new_assoc = ArticleTopic(
+                        article_id=existing.id,
+                        topic_id=topic.id,
+                        matched_keywords=matched_str
+                    )
+                    db.add(new_assoc)
+                    db.commit()
+                continue
+                
+            art["matched_keywords"] = matched_str
+            new_articles.append(art)
+            if len(new_articles) >= 15:
+                break
+
+        if not new_articles:
+            print(f"[Topics] No new articles found for {topic.name}")
+            return
+
+        classified = classify_batch(new_articles)
+
+        saved_count = 0
+        for art in classified:
+            try:
+                embed_text = f"{art['headline']}. {art.get('description') or ''}"
+                embedding_bytes = generate_embedding(embed_text)
+                article = Article(
+                    headline=art["headline"],
+                    description=art.get("description"),
+                    source=art.get("source"),
+                    published_at=art.get("published_at"),
+                    url=art["url"],
+                    oil_impact=art.get("oil_impact", "Unknown"),
+                    impact_reason=art.get("impact_reason"),
+                    impact_confidence=art.get("impact_confidence", 0.0),
+                    importance_score=art.get("importance_score", 50.0),
+                    event_type=art.get("event_type", "primary"),
+                    location=art.get("location"),
+                    latitude=art.get("latitude"),
+                    longitude=art.get("longitude"),
+                    entities=json.dumps(art.get("entities", [])),
+                    embedding=embedding_bytes,
+                )
+                db.add(article)
+                db.flush()
+                
+                assoc = ArticleTopic(
+                    article_id=article.id,
+                    topic_id=topic.id,
+                    matched_keywords=art.get("matched_keywords")
+                )
+                db.add(assoc)
+                
+                db.commit()
+                saved_count += 1
+            except Exception as exc:
+                db.rollback()
+                print(f"[Topics] Error saving article in bg task: {exc}")
+
+        # Macro Summary
+        from app.analysis.classifier import generate_macro_summary
+        top_articles = db.query(Article).join(ArticleTopic).filter(ArticleTopic.topic_id == topic.id).order_by(Article.published_at.desc().nullslast()).limit(20).all()
+        if top_articles:
+            articles_text = "\n\n".join(
+                f"Headline: {a.headline}\nDescription: {a.description or ''}" 
+                for a in top_articles
+            )
+            summary = generate_macro_summary(articles_text)
+            if summary:
+                topic.macro_summary = summary
+                db.commit()
+
+        print(f"[Topics] Background scrape for '{topic.name}' complete. Saved {saved_count} articles.")
+
+    except Exception as exc:
+        print(f"[Topics] Background scrape failed: {exc}")
+    finally:
+        db.close()
+
+@router.post("/{topic_id}/scrape", status_code=202)
+def scrape_topic(topic_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Manually trigger a scrape for a specific topic (runs in background)."""
     topic = db.query(Topic).filter(Topic.id == topic_id).first()
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
 
-    print(f"[Topics] Manual scrape triggered for: {topic.name}")
-
-    # Fetch articles
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        fetched = loop.run_until_complete(fetch_articles_for_topic(topic))
-    finally:
-        loop.close()
-
-    # Filter out existing URLs and handle existing articles
-    new_articles = []
-    from app.models import Article, ArticleTopic
-    for art in fetched:
-        existing = db.query(Article).filter(Article.url == art["url"]).first()
-        
-        # Keyword matching
-        kw_list = []
-        if topic.keywords:
-            try:
-                kw_list = json.loads(topic.keywords)
-            except (json.JSONDecodeError, TypeError):
-                kw_list = []
-        matched = []
-        combined_text = f"{art['headline']} {art.get('description', '') or ''}".lower()
-        for kw in kw_list:
-            if kw.lower() in combined_text:
-                matched.append(kw)
-        matched_str = ", ".join(matched) if matched else None
-                
-        if existing:
-            # Add topic association if it doesn't exist
-            assoc_exists = db.query(ArticleTopic).filter(
-                ArticleTopic.article_id == existing.id,
-                ArticleTopic.topic_id == topic.id
-            ).first()
-            if not assoc_exists:
-                new_assoc = ArticleTopic(
-                    article_id=existing.id,
-                    topic_id=topic.id,
-                    matched_keywords=matched_str
-                )
-                db.add(new_assoc)
-                db.commit()
-                print(f"[Topics] Appended topic '{topic.name}' to existing article '{existing.headline[:30]}'")
-            continue
-            
-        art["matched_keywords"] = matched_str
-        new_articles.append(art)
-        if len(new_articles) >= 15:
-            break
-
-    if not new_articles:
-        return {"message": "No new articles found", "new_articles": 0}
-
-    # Classify
-    classified = classify_batch(new_articles)
-
-    # Embed & Save
-    saved_count = 0
-    for art in classified:
-        try:
-            embed_text = f"{art['headline']}. {art.get('description') or ''}"
-            embedding_bytes = generate_embedding(embed_text)
-            article = Article(
-                headline=art["headline"],
-                description=art.get("description"),
-                source=art.get("source"),
-                published_at=art.get("published_at"),
-                url=art["url"],
-                oil_impact=art.get("oil_impact", "Unknown"),
-                impact_reason=art.get("impact_reason"),
-                impact_confidence=art.get("impact_confidence", 0.0),
-                importance_score=art.get("importance_score", 50.0),
-                event_type=art.get("event_type", "primary"),
-                location=art.get("location"),
-                latitude=art.get("latitude"),
-                longitude=art.get("longitude"),
-                entities=json.dumps(art.get("entities", [])),
-                embedding=embedding_bytes,
-            )
-            db.add(article)
-            db.flush()
-            
-            assoc = ArticleTopic(
-                article_id=article.id,
-                topic_id=topic.id,
-                matched_keywords=art.get("matched_keywords")
-            )
-            db.add(assoc)
-            
-            db.commit()
-            saved_count += 1
-        except Exception as exc:
-            db.rollback()
-            print(f"[Topics] Error saving article: {exc}")
-
-    # --- Generate Macro Summary ---
-    from app.analysis.classifier import generate_macro_summary
-    top_articles = db.query(Article).join(ArticleTopic).filter(ArticleTopic.topic_id == topic.id).order_by(Article.published_at.desc().nullslast()).limit(20).all()
-    if top_articles:
-        articles_text = "\n\n".join(
-            f"Headline: {a.headline}\nDescription: {a.description or ''}" 
-            for a in top_articles
-        )
-        summary = generate_macro_summary(articles_text)
-        if summary:
-            topic.macro_summary = summary
-            db.commit()
-            print(f"[Topics] Generated macro summary for topic: {topic.name}")
-
-    print(f"[Topics] Manual scrape for '{topic.name}' complete. Saved {saved_count} articles.")
-    return {"message": f"Scraping complete for {topic.name}", "new_articles": saved_count}
+    background_tasks.add_task(_run_background_scrape, topic.id)
+    return {"message": "Scrape initiated in the background. Articles will appear shortly.", "new_articles": "..."}
