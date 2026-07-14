@@ -138,6 +138,21 @@
   font-size: 14px;
 }
 
+.header-btn-cta {
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.3);
+}
+
+.header-btn-cta:hover {
+  background: linear-gradient(135deg, #2563eb, #0891b2);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
+  transform: translateY(-1px);
+}
+
 @media (max-width: 768px) {
   .header-center {
     display: none;

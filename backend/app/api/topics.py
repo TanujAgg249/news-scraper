@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.database import get_db
-from app.models import Topic, Article
+from app.models import Topic, Article, ArticleTopic
 from app.schemas import TopicCreate, TopicUpdate, TopicResponse
 
 router = APIRouter(prefix="/api/topics", tags=["Topics"])
@@ -48,13 +48,14 @@ def _topic_to_response(topic: Topic, article_count: int = 0) -> TopicResponse:
 @router.get("", response_model=list[TopicResponse])
 def list_topics(db: Session = Depends(get_db)):
     """List all topics with article counts."""
-    # Sub-query for article count per topic
+    from app.models import ArticleTopic
+    # Sub-query for article count per topic via the association table
     count_subq = (
         db.query(
-            Article.topic_id,
-            func.count(Article.id).label("cnt"),
+            ArticleTopic.topic_id,
+            func.count(ArticleTopic.article_id).label("cnt"),
         )
-        .group_by(Article.topic_id)
+        .group_by(ArticleTopic.topic_id)
         .subquery()
     )
 
@@ -120,7 +121,7 @@ def update_topic(topic_id: str, payload: TopicUpdate, db: Session = Depends(get_
     db.commit()
     db.refresh(topic)
 
-    article_count = db.query(func.count(Article.id)).filter(Article.topic_id == topic_id).scalar() or 0
+    article_count = db.query(func.count(ArticleTopic.article_id)).filter(ArticleTopic.topic_id == topic_id).scalar() or 0
     print(f"[Topics] Updated: {topic.name}")
     return _topic_to_response(topic, article_count)
 
@@ -162,29 +163,47 @@ def scrape_topic(topic_id: str, db: Session = Depends(get_db)):
     finally:
         loop.close()
 
-    # Filter out existing URLs
+    # Filter out existing URLs and handle existing articles
     new_articles = []
-    from app.models import Article
+    from app.models import Article, ArticleTopic
     for art in fetched:
-        existing = db.query(Article.id).filter(Article.url == art["url"]).first()
-        if not existing:
-            art["topic_id"] = topic.id
-            # Keyword matching
-            kw_list = []
-            if topic.keywords:
-                try:
-                    kw_list = json.loads(topic.keywords)
-                except (json.JSONDecodeError, TypeError):
-                    kw_list = []
-            matched = []
-            combined_text = f"{art['headline']} {art.get('description', '') or ''}".lower()
-            for kw in kw_list:
-                if kw.lower() in combined_text:
-                    matched.append(kw)
-            art["matched_keywords"] = ", ".join(matched) if matched else None
-            new_articles.append(art)
-            if len(new_articles) >= 15:
-                break
+        existing = db.query(Article).filter(Article.url == art["url"]).first()
+        
+        # Keyword matching
+        kw_list = []
+        if topic.keywords:
+            try:
+                kw_list = json.loads(topic.keywords)
+            except (json.JSONDecodeError, TypeError):
+                kw_list = []
+        matched = []
+        combined_text = f"{art['headline']} {art.get('description', '') or ''}".lower()
+        for kw in kw_list:
+            if kw.lower() in combined_text:
+                matched.append(kw)
+        matched_str = ", ".join(matched) if matched else None
+                
+        if existing:
+            # Add topic association if it doesn't exist
+            assoc_exists = db.query(ArticleTopic).filter(
+                ArticleTopic.article_id == existing.id,
+                ArticleTopic.topic_id == topic.id
+            ).first()
+            if not assoc_exists:
+                new_assoc = ArticleTopic(
+                    article_id=existing.id,
+                    topic_id=topic.id,
+                    matched_keywords=matched_str
+                )
+                db.add(new_assoc)
+                db.commit()
+                print(f"[Topics] Appended topic '{topic.name}' to existing article '{existing.headline[:30]}'")
+            continue
+            
+        art["matched_keywords"] = matched_str
+        new_articles.append(art)
+        if len(new_articles) >= 15:
+            break
 
     if not new_articles:
         return {"message": "No new articles found", "new_articles": 0}
@@ -204,8 +223,6 @@ def scrape_topic(topic_id: str, db: Session = Depends(get_db)):
                 source=art.get("source"),
                 published_at=art.get("published_at"),
                 url=art["url"],
-                topic_id=art.get("topic_id"),
-                matched_keywords=art.get("matched_keywords"),
                 oil_impact=art.get("oil_impact", "Unknown"),
                 impact_reason=art.get("impact_reason"),
                 impact_confidence=art.get("impact_confidence", 0.0),
@@ -218,6 +235,15 @@ def scrape_topic(topic_id: str, db: Session = Depends(get_db)):
                 embedding=embedding_bytes,
             )
             db.add(article)
+            db.flush()
+            
+            assoc = ArticleTopic(
+                article_id=article.id,
+                topic_id=topic.id,
+                matched_keywords=art.get("matched_keywords")
+            )
+            db.add(assoc)
+            
             db.commit()
             saved_count += 1
         except Exception as exc:
@@ -226,7 +252,7 @@ def scrape_topic(topic_id: str, db: Session = Depends(get_db)):
 
     # --- Generate Macro Summary ---
     from app.analysis.classifier import generate_macro_summary
-    top_articles = db.query(Article).filter(Article.topic_id == topic.id).order_by(Article.published_at.desc().nullslast()).limit(20).all()
+    top_articles = db.query(Article).join(ArticleTopic).filter(ArticleTopic.topic_id == topic.id).order_by(Article.published_at.desc().nullslast()).limit(20).all()
     if top_articles:
         articles_text = "\n\n".join(
             f"Headline: {a.headline}\nDescription: {a.description or ''}" 

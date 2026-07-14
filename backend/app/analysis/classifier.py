@@ -24,16 +24,26 @@ def _get_groq_client():
         _groq_client = Groq(api_key=settings.GROQ_API_KEY)
     return _groq_client
 
+_gemini_client = None
+def _get_gemini_client():
+    global _gemini_client
+    if _gemini_client is None:
+        if not settings.GEMINI_API_KEY:
+            return None
+        from google import genai
+        _gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    return _gemini_client
+
 
 # ---------------------------------------------------------------------------
 # Classification prompt
 # ---------------------------------------------------------------------------
-SYSTEM_PROMPT = """You are an expert news analyst. Given a news headline and description, analyze its overall sentiment and geographic relevance.
+SYSTEM_PROMPT = """You are an expert energy market analyst. Given a news headline and description, analyze its directional impact on global crude oil prices (e.g. Brent crude) and its geographic relevance.
 
 Respond ONLY with valid JSON (no markdown, no extra text) in this exact format:
 {
-  "oil_impact": "Positive" | "Negative" | "Neutral",
-  "impact_reason": "One concise sentence explaining the sentiment",
+  "oil_impact": "Bullish" | "Bearish" | "Neutral" | "Mixed" | "Uncertain",
+  "impact_reason": "One concise sentence explaining the causal chain (e.g., event -> supply/demand effect -> expected price direction)",
   "impact_confidence": 0.0 to 1.0,
   "importance_score": 1 to 100,
   "event_type": "primary" | "reaction" | "analysis" | "follow-up",
@@ -44,7 +54,7 @@ Respond ONLY with valid JSON (no markdown, no extra text) in this exact format:
 }
 
 Definitions:
-- oil_impact: "Positive" = favorable/constructive news, "Negative" = unfavorable/destructive news, "Neutral" = balanced or minimal sentiment
+- oil_impact: "Bullish" = places upward pressure on prices, "Bearish" = places downward pressure on prices. Consider causal chains: e.g. negative geopolitical news often risks supply, making it Bullish.
 - impact_confidence: how confident you are in your assessment (0.0 = unsure, 1.0 = very sure)
 - importance_score: how significant this news event is globally (1 = trivial, 100 = historic)
 - event_type: "primary" = original event, "reaction" = market/political reaction, "analysis" = expert commentary, "follow-up" = update on previous event
@@ -69,7 +79,7 @@ def _default_classification() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Single-article classification
+# Single-article classification (Groq)
 # ---------------------------------------------------------------------------
 
 def classify_article(headline: str, description: Optional[str] = None) -> dict:
@@ -82,12 +92,12 @@ def classify_article(headline: str, description: Optional[str] = None) -> dict:
     """
     global _groq_temporarily_disabled
     if _groq_temporarily_disabled:
-        return _default_classification()
+        return classify_article_gemini(headline, description)
 
     client = _get_groq_client()
     if client is None:
-        print("[Classifier] No GROQ_API_KEY set — using default classification.")
-        return _default_classification()
+        print("[Classifier] No GROQ_API_KEY set — trying Gemini.")
+        return classify_article_gemini(headline, description)
 
     user_content = f"Headline: {headline}"
     if description:
@@ -118,9 +128,9 @@ def classify_article(headline: str, description: Optional[str] = None) -> dict:
             result = json.loads(raw)
 
             # Validate and clamp values
-            valid_impacts = {"Positive", "Negative", "Neutral"}
+            valid_impacts = {"Bullish", "Bearish", "Neutral", "Mixed", "Uncertain"}
             if result.get("oil_impact") not in valid_impacts:
-                result["oil_impact"] = "Neutral"
+                result["oil_impact"] = "Uncertain"
 
             result["impact_confidence"] = max(0.0, min(1.0, float(result.get("impact_confidence", 0.5))))
             result["importance_score"] = max(1.0, min(100.0, float(result.get("importance_score", 50))))
@@ -167,7 +177,7 @@ def classify_article(headline: str, description: Optional[str] = None) -> dict:
                 if "tokens per day" in error_str or "tpd" in error_str or "daily" in error_str:
                     print(f"[Classifier] Daily/TPD Rate Limit reached. Disabling Groq for this run: {exc}")
                     _groq_temporarily_disabled = True
-                    return _default_classification()
+                    return classify_article_gemini(headline, description)
 
                 wait = 2 ** (attempt + 1)
                 print(f"[Classifier] Rate limited. Waiting {wait}s… (attempt {attempt + 1})")
@@ -179,6 +189,80 @@ def classify_article(headline: str, description: Optional[str] = None) -> dict:
 
     print(f"[Classifier] All retries exhausted. Disabling Groq for this run. Last error: {last_error}")
     _groq_temporarily_disabled = True
+    return classify_article_gemini(headline, description)
+
+
+# ---------------------------------------------------------------------------
+# Single-article classification (Gemini Fallback)
+# ---------------------------------------------------------------------------
+
+def classify_article_gemini(headline: str, description: Optional[str] = None) -> dict:
+    """Fallback classifier using Gemini when Groq is rate-limited."""
+    client = _get_gemini_client()
+    if client is None:
+        print("[Classifier] No GEMINI_API_KEY set — using default classification.")
+        return _default_classification()
+        
+    user_content = f"Headline: {headline}"
+    if description:
+        user_content += f"\nDescription: {description}"
+        
+    for attempt in range(2):
+        try:
+            from google.genai import types
+            
+            # Use json schema enforcement
+            response = client.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=f"{SYSTEM_PROMPT}\n\n{user_content}",
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.1
+                )
+            )
+            raw = response.text
+            result = json.loads(raw)
+            
+            valid_impacts = {"Bullish", "Bearish", "Neutral", "Mixed", "Uncertain"}
+            if result.get("oil_impact") not in valid_impacts:
+                result["oil_impact"] = "Uncertain"
+
+            result["impact_confidence"] = max(0.0, min(1.0, float(result.get("impact_confidence", 0.5))))
+            result["importance_score"] = max(1.0, min(100.0, float(result.get("importance_score", 50))))
+
+            valid_event_types = {"primary", "reaction", "analysis", "follow-up"}
+            if result.get("event_type") not in valid_event_types:
+                result["event_type"] = "primary"
+
+            if not result.get("impact_reason"):
+                result["impact_reason"] = None
+
+            if not result.get("location"):
+                result["location"] = None
+                
+            lat = result.get("latitude")
+            lng = result.get("longitude")
+            try:
+                lat = float(lat) if lat is not None else None
+                lng = float(lng) if lng is not None else None
+            except:
+                lat = None
+                lng = None
+            result["latitude"] = lat
+            result["longitude"] = lng
+            
+            entities = result.get("entities", [])
+            if not isinstance(entities, list):
+                entities = []
+            result["entities"] = [str(e) for e in entities[:5]]
+
+            return result
+            
+        except Exception as exc:
+            print(f"[Classifier] Gemini API error (attempt {attempt + 1}): {exc}")
+            time.sleep(1)
+            
+    print("[Classifier] Gemini failed. Falling back to default.")
     return _default_classification()
 
 

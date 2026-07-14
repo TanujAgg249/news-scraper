@@ -71,3 +71,10 @@ export async function scrapeTopic(topicId) {
 export async function fetchOilPrice() {
   return request('/oil-price');
 }
+
+export async function reclassifyArticle(articleId, oilImpact) {
+  return request(`/articles/${articleId}/classify`, {
+    method: 'PATCH',
+    body: { oil_impact: oilImpact },
+  });
+}

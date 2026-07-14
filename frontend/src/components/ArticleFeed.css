@@ -34,11 +34,24 @@
   pointer-events: none;
 }
 
+.feed-filter-section {
+  padding: 0 var(--space-md) var(--space-sm);
+  flex-shrink: 0;
+}
+
+.feed-filter-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
 .feed-filters {
   display: flex;
   gap: 6px;
-  padding: 0 var(--space-md) var(--space-sm);
-  flex-shrink: 0;
 }
 
 .feed-filter-pill {
@@ -67,10 +80,13 @@
 .feed-list {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 0 var(--space-md) var(--space-md);
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+  will-change: scroll-position;
+  contain: layout style;
 }
 
 .feed-card {
@@ -83,13 +99,11 @@
   border-left: 4px solid var(--text-muted);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-base);
-  animation: fadeInUp 0.3s var(--ease-out);
-  animation-fill-mode: backwards;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  contain: content;
 }
 
 .feed-card:hover {
-  transform: scale(1.02);
   border-color: var(--border-light);
   background: var(--bg-tertiary);
 }

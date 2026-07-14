@@ -28,8 +28,11 @@ def _parse_published(entry: dict) -> Optional[datetime]:
     pp = entry.get("published_parsed")
     if pp:
         try:
+            from email.utils import parsedate_to_datetime
             from time import mktime
-            return datetime.fromtimestamp(mktime(pp), tz=timezone.utc)
+            # feedparser time_struct can be converted to aware datetime
+            dt = datetime.fromtimestamp(mktime(pp)).astimezone(timezone.utc)
+            return dt
         except Exception:
             pass
     # Fallback: try dateutil on the raw string
@@ -137,9 +140,9 @@ async def fetch_articles_for_topic(topic: Topic) -> list[dict]:
 # Full scraping cycle
 # ---------------------------------------------------------------------------
 
-def _url_exists(db: Session, url: str) -> bool:
-    """Check if an article URL already exists in the database."""
-    return db.query(Article.id).filter(Article.url == url).first() is not None
+def _get_existing_article(db: Session, url: str) -> Optional[Article]:
+    """Get an existing article by URL."""
+    return db.query(Article).filter(Article.url == url).first()
 
 
 async def run_scraping_cycle(db: Session) -> int:
@@ -169,18 +172,19 @@ async def run_scraping_cycle(db: Session) -> int:
         return 0
 
     new_articles_raw: list[dict] = []
-    topic_map: dict[str, str] = {}  # url → topic_id
+    # url -> list of {topic_id, matched_keywords}
+    url_to_topics: dict[str, list[dict]] = {}
+
+    from app.models import ArticleTopic
 
     for topic in topics:
         fetched = await fetch_articles_for_topic(topic)
         
-        # Sort fetched articles by published_at desc (most recent first)
         fetched.sort(
             key=lambda x: x.get("published_at") or datetime.min.replace(tzinfo=timezone.utc),
             reverse=True
         )
 
-        # Parse keywords for matching
         kw_list: list[str] = []
         if topic.keywords:
             try:
@@ -194,10 +198,6 @@ async def run_scraping_cycle(db: Session) -> int:
                 break
 
             url = art["url"]
-            if _url_exists(db, url):
-                continue
-            if url in topic_map:
-                continue  # already queued from another topic
 
             # Keyword matching
             matched: list[str] = []
@@ -205,12 +205,36 @@ async def run_scraping_cycle(db: Session) -> int:
             for kw in kw_list:
                 if kw.lower() in combined_text:
                     matched.append(kw)
+            matched_str = ", ".join(matched) if matched else None
 
-            art["topic_id"] = topic.id
-            art["matched_keywords"] = ", ".join(matched) if matched else None
-            topic_map[url] = topic.id
-            new_articles_raw.append(art)
-            topic_new_count += 1
+            existing_article = _get_existing_article(db, url)
+            if existing_article:
+                # Add topic association if it doesn't exist
+                assoc_exists = db.query(ArticleTopic).filter(
+                    ArticleTopic.article_id == existing_article.id,
+                    ArticleTopic.topic_id == topic.id
+                ).first()
+                if not assoc_exists:
+                    new_assoc = ArticleTopic(
+                        article_id=existing_article.id,
+                        topic_id=topic.id,
+                        matched_keywords=matched_str
+                    )
+                    db.add(new_assoc)
+                    db.commit()
+                    print(f"[Scraper] Appended topic '{topic.name}' to existing article '{existing_article.headline[:30]}'")
+                continue
+
+            if url not in url_to_topics:
+                url_to_topics[url] = []
+                new_articles_raw.append(art)
+                topic_new_count += 1
+            
+            # Record that this new article belongs to this topic
+            url_to_topics[url].append({
+                "topic_id": topic.id,
+                "matched_keywords": matched_str
+            })
 
     if not new_articles_raw:
         print("[Scraper] No new articles found.")
@@ -234,8 +258,6 @@ async def run_scraping_cycle(db: Session) -> int:
                 source=art.get("source"),
                 published_at=art.get("published_at"),
                 url=art["url"],
-                topic_id=art.get("topic_id"),
-                matched_keywords=art.get("matched_keywords"),
                 oil_impact=art.get("oil_impact", "Unknown"),
                 impact_reason=art.get("impact_reason"),
                 impact_confidence=art.get("impact_confidence", 0.0),
@@ -248,6 +270,17 @@ async def run_scraping_cycle(db: Session) -> int:
                 embedding=embedding_bytes,
             )
             db.add(article)
+            db.flush() # get article.id
+
+            # Add multiple topic associations
+            for t_info in url_to_topics.get(art["url"], []):
+                assoc = ArticleTopic(
+                    article_id=article.id,
+                    topic_id=t_info["topic_id"],
+                    matched_keywords=t_info["matched_keywords"]
+                )
+                db.add(assoc)
+
             db.commit()
             saved_count += 1
         except Exception as exc:
@@ -255,10 +288,15 @@ async def run_scraping_cycle(db: Session) -> int:
             print(f"[Scraper] Error saving article '{art.get('headline', '?')[:50]}': {exc}")
 
     # --- Generate Macro Summaries for topics that had new articles ---
-    topics_to_summarize = set(art.get("topic_id") for art in classified if art.get("topic_id"))
+    topics_to_summarize = set()
+    for t_infos in url_to_topics.values():
+        for t_info in t_infos:
+            topics_to_summarize.add(t_info["topic_id"])
+            
     from app.analysis.classifier import generate_macro_summary
+    from app.models import ArticleTopic
     for t_id in topics_to_summarize:
-        top_articles = db.query(Article).filter(Article.topic_id == t_id).order_by(Article.published_at.desc().nullslast()).limit(20).all()
+        top_articles = db.query(Article).join(ArticleTopic).filter(ArticleTopic.topic_id == t_id).order_by(Article.published_at.desc().nullslast()).limit(20).all()
         if not top_articles:
             continue
             

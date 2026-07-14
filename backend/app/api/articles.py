@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
 
 from app.database import get_db
-from app.models import Article, Topic
+from app.models import Article, Topic, ArticleTopic
 from app.schemas import ArticleResponse, ArticleListResponse
 
 router = APIRouter(prefix="/api/articles", tags=["Articles"])
@@ -17,6 +17,21 @@ router = APIRouter(prefix="/api/articles", tags=["Articles"])
 
 def _article_to_response(article: Article) -> ArticleResponse:
     """Convert an Article ORM instance to an ArticleResponse schema."""
+    import json
+    entities_list = []
+    if article.entities:
+        try:
+            entities_list = json.loads(article.entities)
+        except Exception:
+            pass
+            
+    # For backward compatibility with frontend, pick the first topic
+    first_topic = article.topics[0] if article.topics else None
+    
+    # Try to find matched_keywords from the association if possible, or just skip it
+    # We'll just leave it None for now since we removed it from Article
+    matched_kw = None
+
     return ArticleResponse(
         id=article.id,
         headline=article.headline,
@@ -25,14 +40,18 @@ def _article_to_response(article: Article) -> ArticleResponse:
         published_at=article.published_at,
         url=article.url,
         fetched_at=article.fetched_at,
-        topic_id=article.topic_id,
-        topic_name=article.topic.name if article.topic else None,
-        matched_keywords=article.matched_keywords,
+        topic_id=first_topic.id if first_topic else None,
+        topic_name=first_topic.name if first_topic else None,
+        matched_keywords=matched_kw,
         oil_impact=article.oil_impact or "Unknown",
         impact_reason=article.impact_reason,
         impact_confidence=article.impact_confidence or 0.0,
         importance_score=article.importance_score or 50.0,
         event_type=article.event_type or "primary",
+        location=article.location,
+        latitude=article.latitude,
+        longitude=article.longitude,
+        entities=entities_list,
         created_at=article.created_at,
     )
 
@@ -53,7 +72,7 @@ def list_articles(
 
     # --- Filters ---
     if topic_id:
-        query = query.filter(Article.topic_id == topic_id)
+        query = query.join(ArticleTopic).filter(ArticleTopic.topic_id == topic_id)
     if oil_impact:
         query = query.filter(Article.oil_impact == oil_impact)
     if search:
@@ -90,4 +109,30 @@ def get_article(article_id: str, db: Session = Depends(get_db)):
     article = db.query(Article).filter(Article.id == article_id).first()
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
+    return _article_to_response(article)
+
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class ReclassifyPayload(PydanticBaseModel):
+    oil_impact: str
+
+
+@router.patch("/{article_id}/classify", response_model=ArticleResponse)
+def reclassify_article(article_id: str, payload: ReclassifyPayload, db: Session = Depends(get_db)):
+    """Manually reclassify an article's oil impact without calling AI."""
+    valid_impacts = {"Bullish", "Bearish", "Neutral", "Mixed", "Uncertain"}
+    if payload.oil_impact not in valid_impacts:
+        raise HTTPException(status_code=422, detail=f"Invalid oil_impact. Must be one of: {', '.join(valid_impacts)}")
+
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    article.oil_impact = payload.oil_impact
+    article.impact_confidence = 1.0  # Manual = 100% confidence
+    db.commit()
+    db.refresh(article)
+
+    print(f"[Articles] Manually reclassified '{article.headline[:40]}' → {payload.oil_impact}")
     return _article_to_response(article)

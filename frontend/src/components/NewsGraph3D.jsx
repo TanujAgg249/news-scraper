@@ -31,9 +31,12 @@ const NewsGraph3D = memo(function NewsGraph3D({
   const containerRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [showHint, setShowHint] = useState(true);
   const lastClickRef = useRef({ nodeId: null, time: 0 });
   const autoRotateTimeoutRef = useRef(null);
   const cacheRef = useRef(new Map());
+  // Track pinned (dragged) node positions
+  const pinnedPositionsRef = useRef(new Map());
 
   // Resize observer
   useEffect(() => {
@@ -50,6 +53,15 @@ const NewsGraph3D = memo(function NewsGraph3D({
     observer.observe(container);
     return () => observer.disconnect();
   }, []);
+
+  // Auto-dismiss interaction hint after 8 seconds
+  useEffect(() => {
+    if (!showHint) return;
+    const timer = setTimeout(() => setShowHint(false), 8000);
+    return () => clearTimeout(timer);
+  }, [showHint]);
+
+  const dismissHint = useCallback(() => setShowHint(false), []);
 
   // Auto-rotate camera + pause on interaction
   useEffect(() => {
@@ -168,6 +180,31 @@ const NewsGraph3D = memo(function NewsGraph3D({
     [onNodeClick]
   );
 
+  // Node drag end: pin the node in place
+  const handleNodeDragEnd = useCallback((node) => {
+    // Fix the node position so it doesn't move
+    node.fx = node.x;
+    node.fy = node.y;
+    node.fz = node.z;
+    // Track it so we can reset later
+    pinnedPositionsRef.current.set(node.id, { fx: node.x, fy: node.y, fz: node.z });
+  }, []);
+
+  // Reset all pinned positions and reheat the simulation
+  const handleResetLayout = useCallback(() => {
+    const fg = graphRef.current;
+    if (!fg) return;
+    // Unpin all nodes
+    graphData.nodes.forEach((node) => {
+      node.fx = undefined;
+      node.fy = undefined;
+      node.fz = undefined;
+    });
+    pinnedPositionsRef.current.clear();
+    // Reheat the simulation to let nodes settle naturally
+    fg.d3ReheatSimulation();
+  }, [graphData]);
+
   // Custom node rendering with Three.js + caching
   const nodeThreeObject = useCallback(
     (node) => {
@@ -285,6 +322,7 @@ const NewsGraph3D = memo(function NewsGraph3D({
           nodeThreeObjectExtend={false}
           onNodeClick={handleNodeClick}
           onNodeHover={handleNodeHover}
+          onNodeDragEnd={handleNodeDragEnd}
           linkColor={linkColor}
           linkWidth={linkWidth}
           linkOpacity={0.4}
@@ -302,6 +340,24 @@ const NewsGraph3D = memo(function NewsGraph3D({
       </div>
 
       <div className="graph-depth-overlay" />
+
+      {/* Interaction Hint */}
+      {showHint && (
+        <div className="graph-interaction-hint" onMouseDown={dismissHint} onTouchStart={dismissHint}>
+          <span>🖱️ Drag nodes to rearrange</span>
+          <span className="graph-hint-sep">·</span>
+          <span>Click to read</span>
+          <span className="graph-hint-sep">·</span>
+          <span>Double-click to open article</span>
+        </div>
+      )}
+
+      {/* Reset Layout Button */}
+      {pinnedPositionsRef.current.size > 0 && (
+        <button className="graph-reset-btn" onClick={handleResetLayout} title="Reset all nodes to default positions">
+          ↺ Reset Layout
+        </button>
+      )}
 
       {/* Stats badges */}
       <div className="graph-stats">

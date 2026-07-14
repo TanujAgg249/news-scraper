@@ -48,9 +48,12 @@ const Header = memo(function Header({
       </nav>
 
       <div className="header-right">
-        <button className="header-btn" onClick={onManageTopics}>
-          <span className="header-btn-icon">⚙</span>
-          Manage Topics
+        <button
+          className={`header-btn ${topics.length === 0 ? 'header-btn-cta' : ''}`}
+          onClick={onManageTopics}
+        >
+          <span className="header-btn-icon">{topics.length === 0 ? '＋' : '⚙'}</span>
+          {topics.length === 0 ? 'Add Topics' : 'Topics'}
         </button>
       </div>
     </header>

@@ -29,6 +29,16 @@ def _new_uuid() -> str:
     return str(uuid.uuid4())
 
 
+class ArticleTopic(Base):
+    __tablename__ = "article_topics"
+
+    article_id = Column(String(36), ForeignKey("articles.id", ondelete="CASCADE"), primary_key=True)
+    topic_id = Column(String(36), ForeignKey("topics.id", ondelete="CASCADE"), primary_key=True)
+    matched_keywords = Column(String(500), nullable=True)
+    relevance_score = Column(Float, default=1.0)
+    created_at = Column(DateTime, default=_utcnow)
+
+
 class Article(Base):
     __tablename__ = "articles"
 
@@ -41,9 +51,7 @@ class Article(Base):
     fetched_at = Column(DateTime, default=_utcnow)
 
     # Classification
-    topic_id = Column(String(36), ForeignKey("topics.id"), nullable=True)
-    matched_keywords = Column(String(500), nullable=True)
-    oil_impact = Column(String(20), default="Unknown")  # Positive / Negative / Neutral / Unknown
+    oil_impact = Column(String(20), default="Unknown")  # Bullish / Bearish / Neutral / Mixed / Uncertain
     impact_reason = Column(Text, nullable=True)
     impact_confidence = Column(Float, default=0.0)
     importance_score = Column(Float, default=50.0)
@@ -63,7 +71,7 @@ class Article(Base):
     created_at = Column(DateTime, default=_utcnow)
 
     # Relationships
-    topic = relationship("Topic", back_populates="articles")
+    topics = relationship("Topic", secondary="article_topics", back_populates="articles")
 
     def __repr__(self) -> str:
         return f"<Article {self.id[:8]}… {self.headline[:40]}>"
@@ -82,7 +90,7 @@ class Topic(Base):
     created_at = Column(DateTime, default=_utcnow)
 
     # Relationships
-    articles = relationship("Article", back_populates="topic", cascade="all, delete-orphan")
+    articles = relationship("Article", secondary="article_topics", back_populates="topics")
 
     def __repr__(self) -> str:
         return f"<Topic {self.name}>"

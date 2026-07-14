@@ -5,7 +5,10 @@ import {
   getImpactBgColor,
   getImpactLabel,
 } from '../utils/colors';
+import { reclassifyArticle } from '../api/client';
 import './ArticlePanel.css';
+
+const IMPACT_OPTIONS = ['Bullish', 'Bearish', 'Neutral', 'Mixed', 'Uncertain'];
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -23,8 +26,17 @@ function formatDate(dateStr) {
   }
 }
 
-const ArticlePanel = memo(function ArticlePanel({ article, onClose }) {
+const ArticlePanel = memo(function ArticlePanel({ article, onClose, onReclassify }) {
   const [closing, setClosing] = useState(false);
+  const [currentImpact, setCurrentImpact] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // Sync impact from article prop
+  useEffect(() => {
+    if (article) {
+      setCurrentImpact(getImpactLabel(article.oil_impact || article.impact));
+    }
+  }, [article]);
 
   const handleClose = useCallback(() => {
     setClosing(true);
@@ -32,6 +44,22 @@ const ArticlePanel = memo(function ArticlePanel({ article, onClose }) {
       onClose();
     }, 250);
   }, [onClose]);
+
+  const handleReclassify = useCallback(async (newImpact) => {
+    if (!article?.id || saving) return;
+    setSaving(true);
+    try {
+      await reclassifyArticle(article.id, newImpact);
+      setCurrentImpact(newImpact);
+      if (onReclassify) {
+        onReclassify(article.id, newImpact);
+      }
+    } catch (err) {
+      console.error('Reclassification failed:', err);
+    } finally {
+      setSaving(false);
+    }
+  }, [article, saving, onReclassify]);
 
   // Escape key handler
   useEffect(() => {
@@ -44,10 +72,8 @@ const ArticlePanel = memo(function ArticlePanel({ article, onClose }) {
 
   if (!article) return null;
 
-  const impact = article.oil_impact || article.impact || 'Unknown';
-  const impactLabel = getImpactLabel(impact);
-  const impactColor = getImpactColor(impact);
-  const impactBg = getImpactBgColor(impact);
+  const impactColor = getImpactColor(currentImpact);
+  const impactBg = getImpactBgColor(currentImpact);
   const confidence = article.impact_confidence || article.confidence_score || 0;
   const confidencePct = Math.round(confidence * 100);
   const importance = article.importance_score || article.importance || 0;
@@ -80,12 +106,37 @@ const ArticlePanel = memo(function ArticlePanel({ article, onClose }) {
             )}
           </div>
 
-          {/* Impact Badge */}
+          {/* Current Impact Badge */}
           <div
             className="panel-impact-badge"
             style={{ color: impactColor, background: impactBg }}
           >
-            {getImpactEmoji(impact)} {impactLabel}
+            {getImpactEmoji(currentImpact)} {currentImpact}
+          </div>
+
+          {/* Manual Reclassification */}
+          <div className="panel-section">
+            <span className="panel-section-label">Classify Impact</span>
+            <p className="panel-classify-hint">
+              Click to reclassify this article's oil price impact:
+            </p>
+            <div className="panel-classify-pills">
+              {IMPACT_OPTIONS.map((opt) => (
+                <button
+                  key={opt}
+                  className={`panel-classify-pill ${currentImpact === opt ? 'active' : ''}`}
+                  style={{
+                    '--pill-color': getImpactColor(opt),
+                    '--pill-bg': getImpactBgColor(opt),
+                  }}
+                  onClick={() => handleReclassify(opt)}
+                  disabled={saving}
+                >
+                  {getImpactEmoji(opt)} {opt}
+                </button>
+              ))}
+            </div>
+            {saving && <span className="panel-classify-saving">Saving…</span>}
           </div>
 
           {/* Confidence */}
@@ -102,16 +153,6 @@ const ArticlePanel = memo(function ArticlePanel({ article, onClose }) {
             </div>
             <span className="panel-confidence-text">{confidencePct}%</span>
           </div>
-
-          {/* Impact Reason */}
-          {(article.impact_reason || article.reason) && (
-            <div className="panel-section">
-              <span className="panel-section-label">Impact Reason</span>
-              <p className="panel-reason">
-                {article.impact_reason || article.reason}
-              </p>
-            </div>
-          )}
 
           {/* Importance Score */}
           <div className="panel-section">
@@ -146,6 +187,14 @@ const ArticlePanel = memo(function ArticlePanel({ article, onClose }) {
                   <span key={i} className="panel-entity-badge">{entity}</span>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Location */}
+          {article.location && (
+            <div className="panel-section">
+              <span className="panel-section-label">Location</span>
+              <span className="panel-location-badge">📍 {article.location}</span>
             </div>
           )}
 

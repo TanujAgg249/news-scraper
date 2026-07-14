@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     GROQ_API_KEY: Optional[str] = None
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
+    # --- Gemini AI ---
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+
     # --- Database ---
     DATABASE_URL: str = "sqlite:///energy_pulse.db"
 

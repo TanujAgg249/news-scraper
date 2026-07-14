@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo, Suspense, lazy, useRef } from 'react';
+
 import Header from './components/Header';
 import NewsGraph3D from './components/NewsGraph3D';
 import ArticlePanel from './components/ArticlePanel';
@@ -24,7 +25,7 @@ function App() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [impactFilter, setImpactFilter] = useState('All');
-  const [timelineValue, setTimelineValue] = useState(100); // 0 to 100
+
   const searchTimerRef = useRef(null);
 
   // Debounce search
@@ -60,26 +61,7 @@ function App() {
     loadMore,
   } = useArticles(articleFilters);
 
-  // Derive Min and Max times for the timeline slider
-  const { minTime, maxTime } = useMemo(() => {
-    if (!graphData?.nodes?.length) return { minTime: Date.now(), maxTime: Date.now() };
-    const times = graphData.nodes.map(n => new Date(n.published_at).getTime()).filter(t => !isNaN(t));
-    return { minTime: Math.min(...times), maxTime: Math.max(...times) };
-  }, [graphData]);
 
-  // Filter graphData by timeline
-  const filteredGraphData = useMemo(() => {
-    if (timelineValue === 100 || !graphData?.nodes?.length) return graphData;
-    const cutoffTime = minTime + (maxTime - minTime) * (timelineValue / 100);
-    const filteredNodes = graphData.nodes.filter(n => new Date(n.published_at).getTime() <= cutoffTime);
-    const kept = new Set(filteredNodes.map(n => n.id));
-    const filteredLinks = graphData.links.filter(l => {
-      const s = typeof l.source === 'object' ? l.source.id : l.source;
-      const t = typeof l.target === 'object' ? l.target.id : l.target;
-      return kept.has(s) && kept.has(t);
-    });
-    return { nodes: filteredNodes, links: filteredLinks };
-  }, [graphData, minTime, maxTime, timelineValue]);
 
   // Load topics
   const loadTopics = useCallback(async () => {
@@ -113,6 +95,19 @@ function App() {
     setSelectedArticle(null);
   }, []);
 
+  // Handle reclassification: update graph node color + selected article
+  const handleReclassify = useCallback((articleId, newImpact) => {
+    // Update the selected article in state
+    setSelectedArticle((prev) => {
+      if (prev && prev.id === articleId) {
+        return { ...prev, oil_impact: newImpact, impact: newImpact };
+      }
+      return prev;
+    });
+    // Trigger a graph refetch to update node colors
+    refetchGraph();
+  }, [refetchGraph]);
+
   const handleOpenTopicManager = useCallback(() => {
     setShowTopicManager(true);
   }, []);
@@ -142,23 +137,23 @@ function App() {
     });
   }, [articles]);
 
-  const sentimentCounts = useMemo(() => {
-    const counts = { positive: 0, negative: 0, neutral: 0 };
-    const nodes = filteredGraphData?.nodes || [];
-    nodes.forEach(art => {
-      const impact = art.oil_impact?.toLowerCase() || '';
-      if (impact === 'positive') counts.positive++;
-      else if (impact === 'negative') counts.negative++;
-      else if (impact === 'neutral') counts.neutral++;
+  const stats = useMemo(() => {
+    let bullish = 0, bearish = 0, mixed = 0;
+    (graphData?.nodes || []).forEach(n => {
+      const i = n.oil_impact || n.impact;
+      if (i === 'Bullish' || i === 'Positive') bullish++;
+      if (i === 'Bearish' || i === 'Negative') bearish++;
+      if (i === 'Mixed') mixed++;
     });
-    return counts;
-  }, [filteredGraphData]);
+    return { bullish, bearish, mixed };
+  }, [graphData]);
 
   const activeTopicObj = useMemo(() => {
     return topics.find(t => t.id === activeTopic);
   }, [topics, activeTopic]);
 
-  const timelineCutoffDate = new Date(minTime + (maxTime - minTime) * (timelineValue / 100));
+  // Check if user has no topics (for welcome state)
+  const showWelcome = topics.length === 0 && (!graphData?.nodes?.length);
 
   return (
     <div className="app">
@@ -174,25 +169,45 @@ function App() {
       <main className="app-main">
         {/* 3D Graph / Globe */}
         <section className="app-graph">
+          {/* Welcome State for New Users */}
+          {showWelcome && (
+            <div className="welcome-state">
+              <div className="welcome-icon">⚡</div>
+              <h2 className="welcome-title">Welcome to EnergyPulse</h2>
+              <p className="welcome-desc">
+                Track energy news in real-time with AI-powered analysis.
+                Add a topic to start monitoring articles, sentiment, and oil price impact.
+              </p>
+              <button className="welcome-cta" onClick={handleOpenTopicManager}>
+                + Add Your First Topic
+              </button>
+            </div>
+          )}
+
           {/* View Toggle */}
-          <div className="view-toggle">
-            <button
-              className={`view-toggle-btn ${viewMode === 'graph' ? 'active' : ''}`}
-              onClick={() => setViewMode('graph')}
-            >
-              🔗 Graph
-            </button>
-            <button
-            className={`view-toggle-btn ${viewMode === 'map' ? 'active' : ''}`}
-            onClick={() => setViewMode('map')}
-          >
-            🗺️ Map
-          </button>
-          </div>
+          {!showWelcome && (
+            <div className="view-toggle">
+              <button
+                className={`view-toggle-btn ${viewMode === 'graph' ? 'active' : ''}`}
+                onClick={() => setViewMode('graph')}
+                title="Interactive 3D network showing how articles relate to each other"
+              >
+                🔗 Graph
+              </button>
+              <button
+                className={`view-toggle-btn ${viewMode === 'map' ? 'active' : ''}`}
+                onClick={() => setViewMode('map')}
+                title="Geographic view showing where news events are happening"
+              >
+                🗺️ Map
+              </button>
+              <span className="view-toggle-hint">Click any node to read the article</span>
+            </div>
+          )}
 
           {viewMode === 'graph' ? (
             <NewsGraph3D
-              graphData={filteredGraphData}
+              graphData={graphData}
               onNodeClick={handleNodeClick}
               selectedNodeId={selectedArticle?.id}
             />
@@ -208,7 +223,7 @@ function App() {
               }
             >
               <WorldMap
-                graphData={filteredGraphData}
+                graphData={graphData}
                 onNodeClick={handleNodeClick}
                 selectedNodeId={selectedArticle?.id}
                 loading={graphLoading}
@@ -230,23 +245,7 @@ function App() {
             </div>
           )}
 
-          {/* Timeline Slider */}
-          {graphData?.nodes?.length > 0 && (
-            <div className="timeline-slider-container">
-              <span className="timeline-label">Time-Lapse</span>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={timelineValue}
-                onChange={(e) => setTimelineValue(Number(e.target.value))}
-                className="timeline-slider"
-              />
-              <span className="timeline-label">
-                {timelineValue === 100 ? 'Live' : timelineCutoffDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          )}
+
         </section>
 
         {/* Sidebar */}
@@ -270,20 +269,18 @@ function App() {
       {/* Status Bar */}
       <footer className="app-status">
         <span className="app-status-item">
-          {filteredGraphData?.nodes?.length || 0} nodes
+          {graphData?.nodes?.length || 0} nodes
         </span>
         <span className="app-status-sep">•</span>
-        <span className="app-status-item" style={{ color: 'var(--bullish)' }}>
-          {sentimentCounts.positive} 🟢 Positive
-        </span>
-        <span className="app-status-sep">•</span>
-        <span className="app-status-item" style={{ color: 'var(--bearish)' }}>
-          {sentimentCounts.negative} 🔴 Negative
-        </span>
-        <span className="app-status-sep">•</span>
-        <span className="app-status-item" style={{ color: 'var(--neutral)' }}>
-          {sentimentCounts.neutral} 🟡 Neutral
-        </span>
+              <span className="app-stat app-stat-bullish">
+                🟢 {stats.bullish} Bullish
+              </span>
+              <span className="app-stat app-stat-bearish">
+                🔴 {stats.bearish} Bearish
+              </span>
+              <span className="app-stat app-stat-mixed">
+                🟣 {stats.mixed} Mixed
+              </span>
         <span className="app-status-sep" />
         <span className="app-status-item">
           Updated {lastUpdated}
@@ -300,6 +297,7 @@ function App() {
         <ArticlePanel
           article={selectedArticle}
           onClose={handleClosePanel}
+          onReclassify={handleReclassify}
         />
       )}
 

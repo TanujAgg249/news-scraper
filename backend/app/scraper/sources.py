@@ -7,6 +7,8 @@ Default RSS feed URLs and seed topic definitions for EnergyPulse.
 # ---------------------------------------------------------------------------
 DEFAULT_RSS_FEEDS: list[str] = [
     "https://oilprice.com/rss/main",
+    "https://news.google.com/rss/search?q=energy+oil+site:reuters.com",
+    "https://news.google.com/rss/search?q=energy+oil+site:bloomberg.com",
 ]
 
 # ---------------------------------------------------------------------------

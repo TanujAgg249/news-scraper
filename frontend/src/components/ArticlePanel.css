@@ -213,6 +213,63 @@
   color: white;
 }
 
+/* Reclassification UI */
+.panel-classify-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
+
+.panel-classify-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.panel-classify-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1.5px solid var(--pill-color, var(--border));
+  background: var(--pill-bg, transparent);
+  color: var(--pill-color, var(--text-secondary));
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.panel-classify-pill:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.panel-classify-pill.active {
+  background: var(--pill-color, var(--accent-blue));
+  color: white;
+  border-color: var(--pill-color, var(--accent-blue));
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.panel-classify-pill:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.panel-classify-saving {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  display: block;
+}
+
+.panel-location-badge {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
 @media (max-width: 480px) {
   .article-panel {
     width: 100vw;

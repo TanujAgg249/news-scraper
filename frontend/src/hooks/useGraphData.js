@@ -12,7 +12,7 @@ export function useGraphData(activeTopic) {
   const fetchData = useCallback(async () => {
     try {
       setError(null);
-      const params = {};
+      const params = { hours: 36 };
       if (activeTopic) {
         params.topic_id = activeTopic;
       }

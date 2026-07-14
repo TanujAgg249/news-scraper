@@ -1,37 +1,42 @@
 export const IMPACT_COLORS = {
-  Positive: '#059669',
-  Negative: '#dc2626',
+  Bullish: '#059669',
+  Bearish: '#dc2626',
+  Mixed: '#8b5cf6',
   Neutral: '#d97706',
-  Unknown: '#64748b',
+  Uncertain: '#64748b',
 };
 
 export const IMPACT_BG_COLORS = {
-  Positive: 'rgba(5, 150, 105, 0.1)',
-  Negative: 'rgba(220, 38, 38, 0.1)',
+  Bullish: 'rgba(5, 150, 105, 0.1)',
+  Bearish: 'rgba(220, 38, 38, 0.1)',
+  Mixed: 'rgba(139, 92, 246, 0.1)',
   Neutral: 'rgba(217, 119, 6, 0.1)',
-  Unknown: 'rgba(100, 116, 139, 0.1)',
+  Uncertain: 'rgba(100, 116, 139, 0.1)',
 };
 
 export const IMPACT_GLOWS = {
-  Positive: '0 0 12px rgba(5, 150, 105, 0.25)',
-  Negative: '0 0 12px rgba(220, 38, 38, 0.25)',
+  Bullish: '0 0 12px rgba(5, 150, 105, 0.25)',
+  Bearish: '0 0 12px rgba(220, 38, 38, 0.25)',
+  Mixed: '0 0 12px rgba(139, 92, 246, 0.25)',
   Neutral: '0 0 12px rgba(217, 119, 6, 0.25)',
-  Unknown: '0 0 12px rgba(100, 116, 139, 0.15)',
+  Uncertain: '0 0 12px rgba(100, 116, 139, 0.15)',
 };
 
 export const IMPACT_EMOJIS = {
-  Positive: '🟢',
-  Negative: '🔴',
+  Bullish: '🟢',
+  Bearish: '🔴',
+  Mixed: '🟣',
   Neutral: '🟡',
-  Unknown: '⚪',
+  Uncertain: '⚪',
 };
 
-// Normalize legacy Bullish/Bearish to Positive/Negative
+// Normalize legacy Positive/Negative to Bullish/Bearish
 function normalizeImpactKey(impact) {
-  if (!impact) return 'Unknown';
-  const raw = impact.charAt(0).toUpperCase() + impact.slice(1).toLowerCase();
-  if (raw === 'Bullish') return 'Positive';
-  if (raw === 'Bearish') return 'Negative';
+  if (!impact) return 'Uncertain';
+  let raw = impact.charAt(0).toUpperCase() + impact.slice(1).toLowerCase();
+  if (raw === 'Positive') return 'Bullish';
+  if (raw === 'Negative') return 'Bearish';
+  if (raw === 'Unknown') return 'Uncertain';
   return raw;
 }
 
@@ -57,5 +62,5 @@ export function getImpactGlow(impact) {
 
 export function getImpactLabel(impact) {
   const key = normalizeImpactKey(impact);
-  return key in IMPACT_COLORS ? key : 'Unknown';
+  return key in IMPACT_COLORS ? key : 'Uncertain';
 }

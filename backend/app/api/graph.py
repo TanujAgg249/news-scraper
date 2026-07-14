@@ -7,9 +7,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database import get_db
-from app.models import Article
+from app.models import Article, ArticleTopic
 from app.schemas import GraphNode, GraphLink, GraphResponse
 from app.analysis.embeddings import compute_similarity_matrix
 
@@ -32,14 +33,14 @@ def get_graph(
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
     # --- Query articles ---
-    query = db.query(Article).filter(Article.created_at >= cutoff)
+    query = db.query(Article).filter(func.coalesce(Article.published_at, Article.created_at) >= cutoff)
 
     if topic_id:
-        query = query.filter(Article.topic_id == topic_id)
+        query = query.join(ArticleTopic).filter(ArticleTopic.topic_id == topic_id)
     if min_importance > 0:
         query = query.filter(Article.importance_score >= min_importance)
 
-    articles = query.order_by(Article.published_at.desc()).limit(200).all()
+    articles = query.order_by(func.coalesce(Article.published_at, Article.created_at).desc()).limit(200).all()
 
     if not articles:
         return GraphResponse(nodes=[], links=[])
@@ -94,20 +95,33 @@ def get_graph(
     if len(valid_embeddings) >= 2:
         sim_matrix = compute_similarity_matrix(valid_embeddings)
 
-        # Extract pairs above threshold
+        # Extract pairs above threshold or with shared entities
         threshold = 0.55
         n = len(valid_indices)
         for i in range(n):
             for j in range(i + 1, n):
                 sim = float(sim_matrix[i, j])
-                if sim > threshold:
-                    source_art = articles[valid_indices[i]]
-                    target_art = articles[valid_indices[j]]
+                
+                # Check entity overlap
+                source_node = nodes[valid_indices[i]]
+                target_node = nodes[valid_indices[j]]
+                source_entities = set(source_node.entities or [])
+                target_entities = set(target_node.entities or [])
+                shared_entities = source_entities.intersection(target_entities)
+                
+                # Boost similarity by 0.15 for each shared entity
+                entity_boost = len(shared_entities) * 0.15
+                total_sim = sim + entity_boost
+
+                # If total sim clears threshold, link them!
+                if total_sim > threshold:
+                    # Cap similarity for visual weight
+                    final_weight = min(total_sim, 1.0)
                     links.append(
                         GraphLink(
-                            source=source_art.id,
-                            target=target_art.id,
-                            similarity=round(sim, 4),
+                            source=source_node.id,
+                            target=target_node.id,
+                            similarity=round(final_weight, 4),
                         )
                     )
 

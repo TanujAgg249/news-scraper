@@ -7,7 +7,13 @@ import {
 } from '../utils/colors';
 import './ArticleFeed.css';
 
-const IMPACT_FILTERS = ['All', 'Positive', 'Negative', 'Neutral'];
+const IMPACT_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'Bullish', label: 'Bullish', title: 'Puts upward pressure on oil prices' },
+  { id: 'Bearish', label: 'Bearish', title: 'Puts downward pressure on oil prices' },
+  { id: 'Mixed', label: 'Mixed', title: 'Contains both bullish and bearish signals' },
+  { id: 'Neutral', label: 'Neutral', title: 'No expected impact on oil prices' },
+];
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -43,7 +49,6 @@ const ArticleFeedCard = memo(function ArticleFeedCard({
       className={`feed-card ${isSelected ? 'selected' : ''}`}
       style={{
         borderLeftColor: impactColor,
-        animationDelay: `${Math.min(index * 30, 300)}ms`,
       }}
       onClick={() => onClick(article)}
     >
@@ -103,16 +108,20 @@ const ArticleFeed = memo(function ArticleFeed({
       </div>
 
       {/* Impact Filters */}
-      <div className="feed-filters">
-        {IMPACT_FILTERS.map((f) => (
-          <button
-            key={f}
-            className={`feed-filter-pill ${impactFilter === f ? 'active' : ''}`}
-            onClick={() => onImpactFilterChange(f)}
-          >
-            {f}
-          </button>
-        ))}
+      <div className="feed-filter-section">
+        <span className="feed-filter-label">Oil Price Impact</span>
+        <div className="feed-filters">
+          {IMPACT_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              className={`feed-filter-pill ${impactFilter === f.id ? 'active' : ''}`}
+              onClick={() => onImpactFilterChange(f.id)}
+              title={f.title || 'Show all articles'}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Article List */}
