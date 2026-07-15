@@ -7,6 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
+from app.logger import logger
 
 # ---------------------------------------------------------------------------
 # Module-level scheduler instance
@@ -27,7 +28,7 @@ def _run_scraping_job(session_factory: sessionmaker) -> None:
         finally:
             loop.close()
     except Exception as exc:
-        print(f"[Scheduler] Scraping job error: {exc}")
+        logger.error(f"Scraping job error: {exc}")
     finally:
         db.close()
 
@@ -40,7 +41,7 @@ def _run_oil_price_job(session_factory: sessionmaker) -> None:
     try:
         fetch_and_store_oil_price(db)
     except Exception as exc:
-        print(f"[Scheduler] Oil price job error: {exc}")
+        logger.error(f"Oil price job error: {exc}")
     finally:
         db.close()
 
@@ -54,7 +55,7 @@ def start_scheduler(session_factory: sessionmaker) -> None:
     global _scheduler
 
     if _scheduler is not None:
-        print("[Scheduler] Already running.")
+        logger.info("Already running.")
         return
 
     _scheduler = BackgroundScheduler(daemon=True)
@@ -100,4 +101,4 @@ def stop_scheduler() -> None:
     if _scheduler is not None:
         _scheduler.shutdown(wait=False)
         _scheduler = None
-        print("[Scheduler] Stopped.")
+        logger.info("Stopped.")

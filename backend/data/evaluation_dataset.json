@@ -1,0 +1,52 @@
+[
+    {
+        "headline": "OPEC+ extends deep production cuts until end of 2024",
+        "description": "The oil cartel agreed to keep 2 million bpd off the market to support flagging prices.",
+        "expected_oil_impact": "Bullish"
+    },
+    {
+        "headline": "U.S. crude inventories rise unexpectedly by 5 million barrels",
+        "description": "EIA reports a massive build in commercial crude stocks, surprising analysts who expected a draw.",
+        "expected_oil_impact": "Bearish"
+    },
+    {
+        "headline": "Houthi rebels strike oil tanker in Red Sea",
+        "description": "Shipping companies reroute vessels around Africa following another attack on a commercial tanker.",
+        "expected_oil_impact": "Bullish"
+    },
+    {
+        "headline": "China's economic growth slows to 4.5% amid property slump",
+        "description": "The world's largest oil importer shows signs of prolonged economic weakness, raising demand concerns.",
+        "expected_oil_impact": "Bearish"
+    },
+    {
+        "headline": "Federal Reserve holds interest rates steady",
+        "description": "The central bank decided not to hike rates, providing some relief to equity markets.",
+        "expected_oil_impact": "Neutral"
+    },
+    {
+        "headline": "Saudi Arabia slashes official selling price for Asian buyers",
+        "description": "The Kingdom aggressively cut prices for its flagship Arab Light crude, signaling weak demand.",
+        "expected_oil_impact": "Bearish"
+    },
+    {
+        "headline": "Libya announces an immediate halt to all oil production and exports",
+        "description": "Rival political factions clash over control of the central bank, taking 1.2m bpd offline.",
+        "expected_oil_impact": "Bullish"
+    },
+    {
+        "headline": "New solar and wind capacity breaks records in Europe",
+        "description": "Renewable generation outpaced fossil fuels for the first time across the continent.",
+        "expected_oil_impact": "Bearish"
+    },
+    {
+        "headline": "Hurricane shuts down Gulf of Mexico refineries",
+        "description": "Major refining hubs offline, though offshore crude platforms remain largely untouched.",
+        "expected_oil_impact": "Mixed"
+    },
+    {
+        "headline": "IEA revises global oil demand forecast upward",
+        "description": "The agency expects robust summer travel to drain global inventories faster than anticipated.",
+        "expected_oil_impact": "Bullish"
+    }
+]

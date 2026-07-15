@@ -35,8 +35,9 @@ Base = declarative_base()
 def init_db() -> None:
     """Create all tables that don't yet exist."""
     from app import models  # noqa: F401 — import so models are registered
+    from app.logger import logger
     Base.metadata.create_all(bind=engine)
-    print("[DB] Tables created / verified.")
+    logger.info("Tables created / verified.")
 
 
 def get_db() -> Generator[Session, None, None]:

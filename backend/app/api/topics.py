@@ -12,6 +12,7 @@ from sqlalchemy import func
 from app.database import get_db
 from app.models import Topic, Article, ArticleTopic
 from app.schemas import TopicCreate, TopicUpdate, TopicResponse
+from app.logger import logger
 
 router = APIRouter(prefix="/api/topics", tags=["Topics"])
 
@@ -87,7 +88,7 @@ def create_topic(payload: TopicCreate, db: Session = Depends(get_db)):
     db.add(topic)
     db.commit()
     db.refresh(topic)
-    print(f"[Topics] Created: {topic.name}")
+    logger.info(f"Created: {topic.name}")
     return _topic_to_response(topic, 0)
 
 
@@ -122,7 +123,7 @@ def update_topic(topic_id: str, payload: TopicUpdate, db: Session = Depends(get_
     db.refresh(topic)
 
     article_count = db.query(func.count(ArticleTopic.article_id)).filter(ArticleTopic.topic_id == topic_id).scalar() or 0
-    print(f"[Topics] Updated: {topic.name}")
+    logger.info(f"Updated: {topic.name}")
     return _topic_to_response(topic, article_count)
 
 
@@ -136,7 +137,7 @@ def delete_topic(topic_id: str, db: Session = Depends(get_db)):
     name = topic.name
     db.delete(topic)
     db.commit()
-    print(f"[Topics] Deleted: {name}")
+    logger.info(f"Deleted: {name}")
     return None
 
 
@@ -154,7 +155,7 @@ def _run_background_scrape(topic_id: str):
         if not topic:
             return
 
-        print(f"[Topics] Background manual scrape started for: {topic.name}")
+        logger.info(f"Background manual scrape started for: {topic.name}")
 
         # Fetch articles
         loop = asyncio.new_event_loop()
@@ -203,7 +204,7 @@ def _run_background_scrape(topic_id: str):
                 break
 
         if not new_articles:
-            print(f"[Topics] No new articles found for {topic.name}")
+            logger.info(f"No new articles found for {topic.name}")
             return
 
         classified = classify_batch(new_articles)
@@ -244,7 +245,7 @@ def _run_background_scrape(topic_id: str):
                 saved_count += 1
             except Exception as exc:
                 db.rollback()
-                print(f"[Topics] Error saving article in bg task: {exc}")
+                logger.error(f"Error saving article in bg task: {exc}")
 
         # Macro Summary
         from app.analysis.classifier import generate_macro_summary
@@ -259,10 +260,10 @@ def _run_background_scrape(topic_id: str):
                 topic.macro_summary = summary
                 db.commit()
 
-        print(f"[Topics] Background scrape for '{topic.name}' complete. Saved {saved_count} articles.")
+        logger.info(f"Background scrape for '{topic.name}' complete. Saved {saved_count} articles.")
 
     except Exception as exc:
-        print(f"[Topics] Background scrape failed: {exc}")
+        logger.error(f"Background scrape failed: {exc}")
     finally:
         db.close()
 

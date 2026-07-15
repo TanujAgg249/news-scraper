@@ -7,6 +7,7 @@ import time
 from typing import Optional
 
 from app.config import settings
+from app.logger import logger
 
 # ---------------------------------------------------------------------------
 # Groq client (lazy init)
@@ -96,7 +97,7 @@ def classify_article(headline: str, description: Optional[str] = None) -> dict:
 
     client = _get_groq_client()
     if client is None:
-        print("[Classifier] No GROQ_API_KEY set — trying Gemini.")
+        logger.info("No GROQ_API_KEY set — trying Gemini.")
         return classify_article_gemini(headline, description)
 
     user_content = f"Headline: {headline}"
@@ -169,25 +170,25 @@ def classify_article(headline: str, description: Optional[str] = None) -> dict:
             return result
 
         except json.JSONDecodeError as exc:
-            print(f"[Classifier] JSON parse error (attempt {attempt + 1}): {exc}")
+            logger.error(f"JSON parse error (attempt {attempt + 1}): {exc}")
             last_error = exc
         except Exception as exc:
             error_str = str(exc).lower()
             if "rate_limit" in error_str or "429" in error_str:
                 if "tokens per day" in error_str or "tpd" in error_str or "daily" in error_str:
-                    print(f"[Classifier] Daily/TPD Rate Limit reached. Disabling Groq for this run: {exc}")
+                    logger.warning(f"Daily/TPD Rate Limit reached. Disabling Groq for this run: {exc}")
                     _groq_temporarily_disabled = True
                     return classify_article_gemini(headline, description)
 
                 wait = 2 ** (attempt + 1)
-                print(f"[Classifier] Rate limited. Waiting {wait}s… (attempt {attempt + 1})")
+                logger.warning(f"Rate limited. Waiting {wait}s… (attempt {attempt + 1})")
                 time.sleep(wait)
                 last_error = exc
             else:
-                print(f"[Classifier] Groq API error (attempt {attempt + 1}): {exc}")
+                logger.error(f"Groq API error (attempt {attempt + 1}): {exc}")
                 last_error = exc
 
-    print(f"[Classifier] All retries exhausted. Disabling Groq for this run. Last error: {last_error}")
+    logger.error(f"All retries exhausted. Disabling Groq for this run. Last error: {last_error}")
     _groq_temporarily_disabled = True
     return classify_article_gemini(headline, description)
 
@@ -200,7 +201,7 @@ def classify_article_gemini(headline: str, description: Optional[str] = None) ->
     """Fallback classifier using Gemini when Groq is rate-limited."""
     client = _get_gemini_client()
     if client is None:
-        print("[Classifier] No GEMINI_API_KEY set — using default classification.")
+        logger.info("No GEMINI_API_KEY set — using default classification.")
         return _default_classification()
         
     user_content = f"Headline: {headline}"
@@ -259,10 +260,10 @@ def classify_article_gemini(headline: str, description: Optional[str] = None) ->
             return result
             
         except Exception as exc:
-            print(f"[Classifier] Gemini API error (attempt {attempt + 1}): {exc}")
+            logger.error(f"Gemini API error (attempt {attempt + 1}): {exc}")
             time.sleep(1)
             
-    print("[Classifier] Gemini failed. Falling back to default.")
+    logger.error("Gemini failed. Falling back to default.")
     return _default_classification()
 
 
@@ -283,7 +284,7 @@ def classify_batch(articles: list[dict]) -> list[dict]:
         headline = art.get("headline", "")
         description = art.get("description")
 
-        print(f"[Classifier] Classifying {idx}/{total}: {headline[:60]}…")
+        logger.info(f"Classifying {idx}/{total}: {headline[:60]}…")
         result = classify_article(headline, description)
 
         art["oil_impact"] = result["oil_impact"]
@@ -332,5 +333,5 @@ def generate_macro_summary(articles_text: str) -> Optional[str]:
         )
         return response.choices[0].message.content.strip()
     except Exception as exc:
-        print(f"[Classifier] Error generating macro summary: {exc}")
+        logger.error(f"Error generating macro summary: {exc}")
         return None

@@ -113,6 +113,7 @@ def get_article(article_id: str, db: Session = Depends(get_db)):
 
 
 from pydantic import BaseModel as PydanticBaseModel
+from app.logger import logger
 
 class ReclassifyPayload(PydanticBaseModel):
     oil_impact: str
@@ -134,5 +135,5 @@ def reclassify_article(article_id: str, payload: ReclassifyPayload, db: Session 
     db.commit()
     db.refresh(article)
 
-    print(f"[Articles] Manually reclassified '{article.headline[:40]}' → {payload.oil_impact}")
+    logger.info(f"Manually reclassified '{article.headline[:40]}' → {payload.oil_impact}")
     return _article_to_response(article)

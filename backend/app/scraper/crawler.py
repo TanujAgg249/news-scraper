@@ -17,6 +17,7 @@ from app.models import Article, Topic
 from app.scraper.sources import DEFAULT_RSS_FEEDS
 from app.analysis.classifier import classify_batch
 from app.analysis.embeddings import generate_embedding
+from app.logger import logger
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +96,7 @@ def _fetch_feed(url: str) -> list[dict]:
                 "published_at": _parse_published(entry),
             })
     except Exception as exc:
-        print(f"[Crawler] Error fetching {url}: {exc}")
+        logger.error(f"Error fetching {url}: {exc}")
     return articles
 
 
@@ -132,7 +133,7 @@ async def fetch_articles_for_topic(topic: Topic) -> list[dict]:
                 seen_urls.add(art["url"])
                 all_articles.append(art)
 
-    print(f"[Crawler] Topic '{topic.name}': fetched {len(all_articles)} articles")
+    logger.info(f"Topic '{topic.name}': fetched {len(all_articles)} articles")
     return all_articles
 
 
@@ -155,7 +156,7 @@ async def run_scraping_cycle(db: Session) -> int:
       5. Persist to database progressively
     Returns the number of new articles saved.
     """
-    print("[Scraper] Starting scraping cycle…")
+    logger.info("Starting scraping cycle…")
     
     # Clean up articles older than MAX_ARTICLE_AGE_HOURS
     from app.config import settings
@@ -164,11 +165,11 @@ async def run_scraping_cycle(db: Session) -> int:
     old_count = db.query(Article).filter(Article.created_at < cutoff).delete()
     if old_count:
         db.commit()
-        print(f"[Scraper] Cleaned up {old_count} articles older than {settings.MAX_ARTICLE_AGE_HOURS}h.")
+        logger.info(f"Cleaned up {old_count} articles older than {settings.MAX_ARTICLE_AGE_HOURS}h.")
 
     topics = db.query(Topic).filter(Topic.is_active == True).all()  # noqa: E712
     if not topics:
-        print("[Scraper] No active topics found. Skipping.")
+        logger.info("No active topics found. Skipping.")
         return 0
 
     new_articles_raw: list[dict] = []
@@ -222,7 +223,7 @@ async def run_scraping_cycle(db: Session) -> int:
                     )
                     db.add(new_assoc)
                     db.commit()
-                    print(f"[Scraper] Appended topic '{topic.name}' to existing article '{existing_article.headline[:30]}'")
+                    logger.info(f"Appended topic '{topic.name}' to existing article '{existing_article.headline[:30]}'")
                 continue
 
             if url not in url_to_topics:
@@ -237,10 +238,10 @@ async def run_scraping_cycle(db: Session) -> int:
             })
 
     if not new_articles_raw:
-        print("[Scraper] No new articles found.")
+        logger.info("No new articles found.")
         return 0
 
-    print(f"[Scraper] {len(new_articles_raw)} new articles to process.")
+    logger.info(f"{len(new_articles_raw)} new articles to process.")
 
     # --- Classify ---
     classified = classify_batch(new_articles_raw)
@@ -285,7 +286,7 @@ async def run_scraping_cycle(db: Session) -> int:
             saved_count += 1
         except Exception as exc:
             db.rollback()
-            print(f"[Scraper] Error saving article '{art.get('headline', '?')[:50]}': {exc}")
+            logger.error(f"Error saving article '{art.get('headline', '?')[:50]}': {exc}")
 
     # --- Generate Macro Summaries for topics that had new articles ---
     topics_to_summarize = set()
@@ -311,7 +312,7 @@ async def run_scraping_cycle(db: Session) -> int:
             if topic:
                 topic.macro_summary = summary
                 db.commit()
-                print(f"[Scraper] Generated macro summary for topic: {topic.name}")
+                logger.info(f"Generated macro summary for topic: {topic.name}")
 
-    print(f"[Scraper] Scraping cycle finished. Saved {saved_count} articles.")
+    logger.info(f"Scraping cycle finished. Saved {saved_count} articles.")
     return saved_count

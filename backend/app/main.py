@@ -16,6 +16,7 @@ from app.database import init_db, SessionLocal
 from app.models import Topic
 from app.scraper.sources import DEFAULT_TOPICS
 from app.services.scheduler import start_scheduler, stop_scheduler
+from app.logger import logger
 
 # --- API Routers ---
 from app.api.articles import router as articles_router
@@ -34,7 +35,7 @@ def _seed_default_topics() -> None:
     try:
         count = db.query(Topic).count()
         if count > 0:
-            print(f"[Startup] {count} topics already exist — skipping seed.")
+            logger.info(f"{count} topics already exist — skipping seed.")
             return
 
         for t in DEFAULT_TOPICS:
@@ -48,10 +49,10 @@ def _seed_default_topics() -> None:
             db.add(topic)
 
         db.commit()
-        print(f"[Startup] Seeded {len(DEFAULT_TOPICS)} default topics.")
+        logger.info(f"Seeded {len(DEFAULT_TOPICS)} default topics.")
     except Exception as exc:
         db.rollback()
-        print(f"[Startup] Error seeding topics: {exc}")
+        logger.error(f"Error seeding topics: {exc}")
     finally:
         db.close()
 
@@ -60,22 +61,29 @@ def _seed_default_topics() -> None:
 # Lifespan
 # ---------------------------------------------------------------------------
 
+import os
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown hooks."""
     # --- Startup ---
-    print("[Startup] Initializing EnergyPulse API…")
+    logger.info("Initializing EnergyPulse API…")
     init_db()
     _seed_default_topics()
-    start_scheduler(SessionLocal)
-    print("[Startup] Ready.")
+    
+    if os.environ.get("TESTING") != "true":
+        start_scheduler(SessionLocal)
+    else:
+        logger.info("TESTING=true detected. Skipping background scheduler.")
+        
+    logger.info("Ready.")
 
     yield
 
     # --- Shutdown ---
-    print("[Shutdown] Stopping scheduler…")
+    logger.info("Stopping scheduler…")
     stop_scheduler()
-    print("[Shutdown] Done.")
+    logger.info("Done.")
 
 
 # ---------------------------------------------------------------------------

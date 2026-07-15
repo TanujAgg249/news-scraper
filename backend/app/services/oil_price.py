@@ -8,6 +8,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models import OilPrice
+from app.logger import logger
 
 
 def fetch_oil_price() -> Optional[dict]:
@@ -42,7 +43,7 @@ def fetch_oil_price() -> Optional[dict]:
             "change_pct": round(change_pct, 2),
         }
     except Exception as exc:
-        print(f"[OilPrice] Error fetching price: {exc}")
+        logger.error(f"Error fetching price: {exc}")
         return None
 
 
@@ -64,9 +65,9 @@ def fetch_and_store_oil_price(db: Session) -> Optional[dict]:
         )
         db.add(record)
         db.commit()
-        print(f"[OilPrice] Stored: ${data['price']:.2f} ({data['change_pct']:+.2f}%)")
+        logger.info(f"Stored: ${data['price']:.2f} ({data['change_pct']:+.2f}%)")
         return data
     except Exception as exc:
         db.rollback()
-        print(f"[OilPrice] DB error: {exc}")
+        logger.error(f"DB error: {exc}")
         return None

@@ -16,6 +16,7 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 import numpy as np
 
 from app.config import settings
+from app.logger import logger
 
 # ---------------------------------------------------------------------------
 # Lazy-loaded model singleton
@@ -32,12 +33,12 @@ def _get_model():
         return None
     if _model is None:
         try:
-            print(f"[Embeddings] Loading model '{settings.EMBEDDING_MODEL}'…")
+            logger.info(f"Loading model '{settings.EMBEDDING_MODEL}'…")
             from sentence_transformers import SentenceTransformer
             _model = SentenceTransformer(settings.EMBEDDING_MODEL)
-            print("[Embeddings] Model loaded.")
+            logger.info("Model loaded.")
         except Exception as exc:
-            print(f"[Embeddings] Failed to load model: {exc}")
+            logger.error(f"Failed to load model: {exc}")
             _model_failed = True
             return None
     return _model
@@ -84,7 +85,7 @@ def generate_embedding(text: str) -> Optional[bytes]:
             embedding: np.ndarray = model.encode(text, convert_to_numpy=True)
             return pickle.dumps(embedding)
         except Exception as exc:
-            print(f"[Embeddings] Encoding failed: {exc}")
+            logger.error(f"Encoding failed: {exc}")
             return None
 
     # Lightweight fallback
@@ -93,7 +94,7 @@ def generate_embedding(text: str) -> Optional[bytes]:
             embedding = _lightweight_embedding(text)
             return pickle.dumps(embedding)
         except Exception as exc:
-            print(f"[Embeddings] Lightweight encoding failed: {exc}")
+            logger.error(f"Lightweight encoding failed: {exc}")
             return None
 
     return None
@@ -106,7 +107,7 @@ def unpickle_embedding(data: bytes) -> Optional[np.ndarray]:
     try:
         return pickle.loads(data)
     except Exception as exc:
-        print(f"[Embeddings] Failed to unpickle embedding: {exc}")
+        logger.error(f"Failed to unpickle embedding: {exc}")
         return None
 
 
