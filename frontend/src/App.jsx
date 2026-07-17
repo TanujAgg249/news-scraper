@@ -233,7 +233,8 @@ function App() {
             </Suspense>
           )}
 
-          {/* AI Executive Briefing */}
+          {/* AI Executive Briefing disabled per user request */}
+          {/*
           {activeTopicObj?.macro_summary && (
             <div className="macro-summary-panel">
               <h3>🧠 AI Executive Briefing</h3>
@@ -244,6 +245,7 @@ function App() {
               </ul>
             </div>
           )}
+          */}
 
 
         </section>
