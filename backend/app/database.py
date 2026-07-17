@@ -10,17 +10,26 @@ from typing import Generator
 from app.config import settings
 
 # ---------------------------------------------------------------------------
-# Engine — use check_same_thread=False for SQLite so multiple threads work
+# Engine
 # ---------------------------------------------------------------------------
+db_url = settings.DATABASE_URL
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
 connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
+engine_kwargs = {"echo": False, "pool_pre_ping": True}
+
+if db_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
+else:
+    # PostgreSQL connection pooling for Supabase
+    engine_kwargs["pool_size"] = 5
+    engine_kwargs["max_overflow"] = 10
 
 engine = create_engine(
-    settings.DATABASE_URL,
+    db_url,
     connect_args=connect_args,
-    echo=False,
-    pool_pre_ping=True,
+    **engine_kwargs
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

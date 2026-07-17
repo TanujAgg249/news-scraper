@@ -17,25 +17,19 @@ if not _env_file.exists():
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    # --- Groq AI ---
-    GROQ_API_KEY: Optional[str] = None
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
-
-    # --- Gemini AI ---
-    GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    # --- OpenAI AI ---
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_CLASSIFIER_MODEL: str = "gpt-4o-mini"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
     # --- Database ---
-    DATABASE_URL: str = "sqlite:///energy_pulse.db"
+    DATABASE_URL: str = "sqlite:///./energy_pulse.db"
 
     # --- Scheduler ---
     FETCH_INTERVAL_MINUTES: int = 60
 
     # --- Article retention ---
     MAX_ARTICLE_AGE_HOURS: int = 48
-
-    # --- Embeddings ---
-    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
 
     model_config = {
         "env_file": str(_env_file),

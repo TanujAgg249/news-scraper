@@ -10,25 +10,10 @@ services:
     dockerContext: ./backend
     plan: free
     envVars:
-      - key: GROQ_API_KEY
+      - key: OPENAI_API_KEY
         sync: false  # You'll set this manually in the Render dashboard
       - key: DATABASE_URL
-        value: sqlite:///energy_pulse.db
+        sync: false  # You'll set this to your Supabase Postgres URL in the Render dashboard
       - key: PYTHONUNBUFFERED
         value: "1"
     healthCheckPath: /
-
-  # --- Frontend: React static site ---
-  - type: web
-    name: energypulse-frontend
-    runtime: static
-    buildCommand: cd frontend && npm install --legacy-peer-deps && npm run build
-    staticPublishPath: ./frontend/dist
-    plan: free
-    envVars:
-      - key: VITE_API_URL
-        sync: false  # Set to your backend URL after it's deployed
-    headers:
-      - path: /*
-        name: Cache-Control
-        value: public, max-age=0, must-revalidate

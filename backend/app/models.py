@@ -13,10 +13,10 @@ from sqlalchemy import (
     Boolean,
     Integer,
     DateTime,
-    LargeBinary,
     ForeignKey,
 )
 from sqlalchemy.orm import relationship
+from pgvector.sqlalchemy import Vector
 
 from app.database import Base
 
@@ -57,8 +57,8 @@ class Article(Base):
     importance_score = Column(Float, default=50.0)
     event_type = Column(String(20), default="primary")  # primary / reaction / analysis / follow-up
 
-    # Embedding (pickled numpy array)
-    embedding = Column(LargeBinary, nullable=True)
+    # Embedding (OpenAI text-embedding-3-small is 1536 dims)
+    embedding = Column(Vector(1536), nullable=True)
 
     # Geo-location (extracted by classifier)
     location = Column(String(200), nullable=True)
