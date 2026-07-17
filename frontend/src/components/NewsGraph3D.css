@@ -20,7 +20,7 @@
   height: 120px;
   background: linear-gradient(
     to top,
-    rgba(248, 250, 252, 0.9) 0%,
+    var(--bg-primary) 10%,
     transparent 100%
   );
   pointer-events: none;
@@ -125,7 +125,7 @@
 }
 
 .graph-error-retry:hover {
-  background: #2563eb;
+  background: var(--accent-blue);
   box-shadow: var(--glow-blue);
 }
 

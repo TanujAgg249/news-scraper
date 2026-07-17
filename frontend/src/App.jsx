@@ -15,11 +15,22 @@ const WorldMap = lazy(() => import('./components/WorldMap'));
 
 function App() {
   // State
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [activeTopic, setActiveTopic] = useState(null);
   const [topics, setTopics] = useState([]);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [showTopicManager, setShowTopicManager] = useState(false);
   const [viewMode, setViewMode] = useState('graph');
+
+  // Theme management
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
 
   // Lifted search/filter state
   const [search, setSearch] = useState('');
@@ -163,6 +174,8 @@ function App() {
         activeTopic={activeTopic}
         onTopicChange={handleTopicChange}
         onManageTopics={handleOpenTopicManager}
+        theme={theme}
+        onThemeToggle={toggleTheme}
       />
 
       {/* Main Content */}

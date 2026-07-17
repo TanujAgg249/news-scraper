@@ -6,6 +6,8 @@ const Header = memo(function Header({
   activeTopic,
   onTopicChange,
   onManageTopics,
+  theme,
+  onThemeToggle,
 }) {
   const handleTopicClick = useCallback(
     (topicId) => {
@@ -48,6 +50,9 @@ const Header = memo(function Header({
       </nav>
 
       <div className="header-right">
+        <button className="header-btn theme-toggle" onClick={onThemeToggle} aria-label="Toggle theme">
+          <span className="header-btn-icon">{theme === 'dark' ? '☀️' : '🌙'}</span>
+        </button>
         <button
           className={`header-btn ${topics.length === 0 ? 'header-btn-cta' : ''}`}
           onClick={onManageTopics}
