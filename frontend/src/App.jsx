@@ -246,19 +246,7 @@ function App() {
             </Suspense>
           )}
 
-          {/* AI Executive Briefing disabled per user request */}
-          {/*
-          {activeTopicObj?.macro_summary && (
-            <div className="macro-summary-panel">
-              <h3>🧠 AI Executive Briefing</h3>
-              <ul>
-                {activeTopicObj.macro_summary.split('\n').map(l => l.replace(/^[-*]\s*/, '')).filter(l => l.trim()).map((bullet, i) => (
-                  <li key={i}>{bullet}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          */}
+          {/* AI Executive Briefing removed per user request */}
 
 
         </section>
