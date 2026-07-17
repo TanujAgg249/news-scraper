@@ -48,7 +48,7 @@
   gap: var(--space-lg);
   height: 32px;
   padding: 0 var(--space-lg);
-  background: rgba(248, 250, 252, 0.95);
+  background: var(--bg-glass-heavy);
   border-top: 1px solid var(--border);
   font-size: 11px;
   font-family: var(--font-mono);
@@ -99,7 +99,7 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--bg-glass);
   border: 1px solid var(--border);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);

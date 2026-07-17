@@ -10,7 +10,7 @@
   padding: 0 var(--space-lg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--bg-glass-heavy);
   border-bottom: 1px solid var(--border);
   z-index: var(--z-header);
   animation: fadeIn 0.4s var(--ease-out);
