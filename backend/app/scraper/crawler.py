@@ -208,6 +208,10 @@ async def run_scraping_cycle(db: Session) -> int:
                     matched.append(kw)
             matched_str = ", ".join(matched) if matched else None
 
+            # STRICT KEYWORD FILTER: Prevent generic news from contaminating topics
+            if kw_list and not matched:
+                continue
+
             existing_article = _get_existing_article(db, url)
             if existing_article:
                 # Add topic association if it doesn't exist
