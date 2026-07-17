@@ -26,6 +26,7 @@ const NewsGraph3D = memo(function NewsGraph3D({
   loading,
   error,
   onRetry,
+  theme,
 }) {
   const graphRef = useRef(null);
   const containerRef = useRef(null);
@@ -324,7 +325,7 @@ const NewsGraph3D = memo(function NewsGraph3D({
           graphData={graphData}
           width={dimensions.width}
           height={dimensions.height}
-          backgroundColor="#f8fafc"
+          backgroundColor={theme === 'dark' ? '#0f172a' : '#f8fafc'}
           nodeThreeObject={nodeThreeObject}
           nodeThreeObjectExtend={false}
           onNodeClick={handleNodeClick}

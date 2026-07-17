@@ -223,6 +223,7 @@ function App() {
               graphData={graphData}
               onNodeClick={handleNodeClick}
               selectedNodeId={selectedArticle?.id}
+              theme={theme}
             />
           ) : (
             <Suspense
@@ -242,6 +243,7 @@ function App() {
                 loading={graphLoading}
                 error={graphError}
                 onRetry={refetchGraph}
+                theme={theme}
               />
             </Suspense>
           )}

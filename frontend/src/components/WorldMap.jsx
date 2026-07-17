@@ -18,6 +18,7 @@ const WorldMap = memo(function WorldMap({
   loading,
   error,
   onRetry,
+  theme,
 }) {
   const [tooltip, setTooltip] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -150,12 +151,12 @@ const WorldMap = memo(function WorldMap({
                 <Geography
                   key={geo.rsmKey}
                   geography={geo}
-                  fill="#e2e8f0"
-                  stroke="#cbd5e1"
+                  fill={theme === 'dark' ? '#334155' : '#e2e8f0'}
+                  stroke={theme === 'dark' ? '#475569' : '#cbd5e1'}
                   strokeWidth={0.5}
                   style={{
                     default: { outline: 'none' },
-                    hover: { fill: '#cbd5e1', outline: 'none' },
+                    hover: { fill: theme === 'dark' ? '#475569' : '#cbd5e1', outline: 'none' },
                     pressed: { outline: 'none' },
                   }}
                 />
