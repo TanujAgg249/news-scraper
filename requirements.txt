@@ -1,7 +1,0 @@
-requests
-pandas
-openpyxl
-schedule
-python-dotenv
-google-genai
-yfinance
