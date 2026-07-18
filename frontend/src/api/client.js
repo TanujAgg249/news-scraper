@@ -78,3 +78,10 @@ export async function reclassifyArticle(articleId, oilImpact) {
     body: { oil_impact: oilImpact },
   });
 }
+
+export async function askQuestion(query) {
+  return request('/chat/ask', {
+    method: 'POST',
+    body: { query },
+  });
+}

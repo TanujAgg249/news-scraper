@@ -6,6 +6,7 @@ import ArticlePanel from './components/ArticlePanel';
 import ArticleFeed from './components/ArticleFeed';
 import OilPriceWidget from './components/OilPriceWidget';
 import TopicManager from './components/TopicManager';
+import ChatAssistant from './components/ChatAssistant';
 import { useGraphData } from './hooks/useGraphData';
 import { useArticles } from './hooks/useArticles';
 import { fetchTopics } from './api/client';
@@ -21,6 +22,7 @@ function App() {
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [showTopicManager, setShowTopicManager] = useState(false);
   const [viewMode, setViewMode] = useState('graph');
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Theme management
   useEffect(() => {
@@ -215,6 +217,15 @@ function App() {
                 🗺️ Map
               </button>
               <span className="view-toggle-hint">Click any node to read the article</span>
+              
+              <div className="view-toggle-sep"></div>
+              <button
+                className="view-toggle-btn chat-ai-btn"
+                onClick={() => setIsChatOpen(true)}
+                title="Ask the AI research assistant"
+              >
+                Ask AI
+              </button>
             </div>
           )}
 
@@ -247,9 +258,6 @@ function App() {
               />
             </Suspense>
           )}
-
-          {/* AI Executive Briefing removed per user request */}
-
 
         </section>
 
@@ -313,6 +321,9 @@ function App() {
           onTopicsChange={handleTopicsChange}
         />
       )}
+
+      {/* Chat Assistant */}
+      <ChatAssistant isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </div>
   );
 }

@@ -23,6 +23,7 @@ from app.api.articles import router as articles_router
 from app.api.graph import router as graph_router
 from app.api.topics import router as topics_router
 from app.api.oil_price import router as oil_price_router
+from app.api.chat import router as chat_router
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +112,7 @@ app.include_router(articles_router)
 app.include_router(graph_router)
 app.include_router(topics_router)
 app.include_router(oil_price_router)
+app.include_router(chat_router)
 
 
 # --- Root health-check ---

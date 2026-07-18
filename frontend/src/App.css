@@ -128,6 +128,26 @@
   white-space: nowrap;
 }
 
+.view-toggle-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+  align-self: center;
+}
+
+.view-toggle-btn.chat-ai-btn {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1));
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--text-primary);
+}
+
+.view-toggle-btn.chat-ai-btn:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(16, 185, 129, 0.2));
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+}
+
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .app-main {
