@@ -200,6 +200,14 @@ async def run_scraping_cycle(db: Session) -> int:
 
             url = art["url"]
 
+            # DATE FILTER: Reject articles older than MAX_ARTICLE_AGE_HOURS
+            from app.config import settings
+            from datetime import timedelta
+            if art.get("published_at"):
+                age_cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.MAX_ARTICLE_AGE_HOURS)
+                if art["published_at"] < age_cutoff:
+                    continue
+
             # Keyword matching
             matched: list[str] = []
             combined_text = f"{art['headline']} {art.get('description', '') or ''}".lower()
