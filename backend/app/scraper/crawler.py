@@ -124,8 +124,7 @@ async def fetch_articles_for_topic(topic: Topic) -> list[dict]:
         except (json.JSONDecodeError, TypeError):
             custom_feeds = []
 
-    # 3. Also add the default static feeds
-    custom_feeds.extend(DEFAULT_RSS_FEEDS)
+    # Default static feeds removed — each topic only scrapes its own sources
 
     for feed_url in custom_feeds:
         for art in _fetch_feed(feed_url):
@@ -216,8 +215,8 @@ async def run_scraping_cycle(db: Session) -> int:
                     matched.append(kw)
             matched_str = ", ".join(matched) if matched else None
 
-            # STRICT KEYWORD FILTER: Prevent generic news from contaminating topics
-            if kw_list and not matched:
+            # STRICT KEYWORD FILTER: Require at least 2 keyword matches
+            if kw_list and len(matched) < 2:
                 continue
 
             existing_article = _get_existing_article(db, url)
