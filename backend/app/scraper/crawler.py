@@ -215,8 +215,8 @@ async def run_scraping_cycle(db: Session) -> int:
                     matched.append(kw)
             matched_str = ", ".join(matched) if matched else None
 
-            # STRICT KEYWORD FILTER: Require at least 2 keyword matches
-            if kw_list and len(matched) < 2:
+            # STRICT KEYWORD FILTER: Article must match at least 1 keyword
+            if kw_list and not matched:
                 continue
 
             existing_article = _get_existing_article(db, url)
