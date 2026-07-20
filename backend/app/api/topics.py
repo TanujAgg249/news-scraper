@@ -275,4 +275,4 @@ def scrape_topic(topic_id: str, background_tasks: BackgroundTasks, db: Session =
         raise HTTPException(status_code=404, detail="Topic not found")
 
     background_tasks.add_task(_run_background_scrape, topic.id)
-    return {"message": "Scrape initiated in the background. Articles will appear shortly.", "new_articles": "..."}
+    return {"message": "Scrape initiated in the background. Articles will appear shortly."}

@@ -120,10 +120,17 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
       setScrapingId(topic.id);
       setScrapeResult('');
       setActionError('');
-      const result = await scrapeTopic(topic.id);
-      setScrapeResult(`${topic.name}: Found ${result.new_articles} new articles`);
+      await scrapeTopic(topic.id);
+      setScrapeResult(`${topic.name}: Scraping in progress, new articles will appear shortly...`);
       await loadTopics();
       if (onTopicsChange) onTopicsChange();
+
+      // The backend processes articles in the background (classifying, embedding).
+      // Schedule a delayed refresh so the graph updates once processing is done.
+      setTimeout(() => {
+        setScrapeResult(`${topic.name}: Scrape complete`);
+        if (onTopicsChange) onTopicsChange();
+      }, 30000);
     } catch (err) {
       setActionError(`Scrape failed for "${topic.name}": ${err.message}`);
     } finally {
