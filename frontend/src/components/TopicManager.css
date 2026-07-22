@@ -168,6 +168,16 @@
   padding: 3px 8px;
 }
 
+.topic-scrape-text {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--accent-green);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .topic-item-btn.edit:hover {
   background: rgba(255, 184, 0, 0.2);
 }

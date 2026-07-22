@@ -25,5 +25,5 @@ ENV PORT=8000
 # Mark this as a cloud deployment (disables heavy ML models)
 ENV RENDER=true
 
-# Run the FastAPI app with uvicorn
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# Run database migrations and start the FastAPI app
+CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT

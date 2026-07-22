@@ -32,12 +32,15 @@ def _parse_pub_date(date_str: str) -> Optional[datetime]:
         return None
 
 
-async def fetch_articles_for_topic(topic: Topic) -> list[dict]:
+async def fetch_articles_for_topic(topic: Topic, progress_cb=None) -> list[dict]:
     """
     Fetch articles via Google News RSS search and extract full text using Trafilatura.
     """
     all_articles: list[dict] = []
     seen_urls: set[str] = set()
+
+    if progress_cb:
+        progress_cb(f"Preparing to search for '{topic.name}'...")
 
     if not topic.query:
         return []
@@ -102,6 +105,9 @@ async def fetch_articles_for_topic(topic: Topic) -> list[dict]:
                     "source": source,
                     "published_at": _parse_pub_date(pub_date_str),
                 })
+                
+                if progress_cb:
+                    progress_cb(f"Fetched {len(all_articles)}/15 articles...")
                 
                 # Limit to 15 articles total per topic to ensure fast scraping response
                 if len(all_articles) >= 15:

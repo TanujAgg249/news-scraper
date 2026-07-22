@@ -13,6 +13,8 @@ from app.database import get_db
 from app.models import Topic, Article, ArticleTopic
 from app.schemas import TopicCreate, TopicUpdate, TopicResponse
 from app.logger import logger
+from app.api.progress import progress_manager
+from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/api/topics", tags=["Topics"])
 
@@ -161,12 +163,17 @@ def _run_background_scrape(topic_id: str):
             return
 
         logger.info(f"Background manual scrape started for: {topic.name}")
+        progress_manager.broadcast_sync(topic_id, json.dumps({"status": f"Preparing to search '{topic.name}'..."}))
 
         # Fetch articles
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        
+        def progress_cb(msg: str):
+            progress_manager.broadcast_sync(topic_id, json.dumps({"status": msg}))
+
         try:
-            fetched = loop.run_until_complete(fetch_articles_for_topic(topic))
+            fetched = loop.run_until_complete(fetch_articles_for_topic(topic, progress_cb=progress_cb))
         finally:
             loop.close()
 
@@ -210,8 +217,10 @@ def _run_background_scrape(topic_id: str):
 
         if not new_articles:
             logger.info(f"No new articles found for {topic.name}")
+            progress_manager.broadcast_sync(topic_id, json.dumps({"status": "Completed: 0 new articles found."}))
             return
 
+        progress_manager.broadcast_sync(topic_id, json.dumps({"status": f"Classifying {len(new_articles)} new articles..."}))
         classified = classify_batch(new_articles)
 
         saved_count = 0
@@ -266,9 +275,11 @@ def _run_background_scrape(topic_id: str):
                 db.commit()
 
         logger.info(f"Background scrape for '{topic.name}' complete. Saved {saved_count} articles.")
+        progress_manager.broadcast_sync(topic_id, json.dumps({"status": f"Completed: {saved_count} new articles saved."}))
 
     except Exception as exc:
         logger.error(f"Background scrape failed: {exc}")
+        progress_manager.broadcast_sync(topic_id, json.dumps({"status": "Error: Scrape failed."}))
     finally:
         db.close()
 
@@ -281,3 +292,22 @@ def scrape_topic(topic_id: str, background_tasks: BackgroundTasks, db: Session =
 
     background_tasks.add_task(_run_background_scrape, topic.id)
     return {"message": "Scrape initiated in the background. Articles will appear shortly."}
+
+@router.get("/{topic_id}/scrape/status")
+async def scrape_status(topic_id: str):
+    """SSE endpoint to stream live scraping progress."""
+    async def event_generator():
+        q = progress_manager.add_listener(topic_id)
+        try:
+            while True:
+                msg = await q.get()
+                yield f"data: {msg}\n\n"
+                # If message implies completion or error, end stream
+                if "Completed" in msg or "Error" in msg:
+                    break
+        except asyncio.CancelledError:
+            pass
+        finally:
+            progress_manager.remove_listener(topic_id, q)
+            
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

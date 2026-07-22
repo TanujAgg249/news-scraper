@@ -5,6 +5,7 @@ import {
   updateTopic,
   deleteTopic,
   scrapeTopic,
+  API_BASE,
 } from '../api/client';
 import './TopicManager.css';
 
@@ -124,20 +125,39 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
       setScrapingId(topic.id);
       setScrapeResult('');
       setActionError('');
+      
+      // Trigger the background scrape
       await scrapeTopic(topic.id);
-      setScrapeResult(`${topic.name}: Scraping in progress, new articles will appear shortly...`);
-      await loadTopics();
-      if (onTopicsChange) onTopicsChange();
+      setScrapeResult(`Connecting to live feed for ${topic.name}...`);
+      
+      // Connect to SSE for live progress
+      const evtSource = new EventSource(`${API_BASE}/topics/${topic.id}/scrape/status`);
+      
+      evtSource.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          setScrapeResult(`${data.status}`);
+          
+          if (data.status.includes('Completed') || data.status.includes('Error')) {
+            evtSource.close();
+            setScrapingId(null);
+            await loadTopics();
+            if (onTopicsChange) onTopicsChange();
+          }
+        } catch (e) {
+          // ignore parsing errors
+        }
+      };
+      
+      evtSource.onerror = () => {
+        evtSource.close();
+        setScrapingId(null);
+        setScrapeResult(`Connection lost to live feed. Scrape may still be running.`);
+        loadTopics();
+      };
 
-      // The backend processes articles in the background (classifying, embedding).
-      // Schedule a delayed refresh so the graph updates once processing is done.
-      setTimeout(() => {
-        setScrapeResult(`${topic.name}: Scrape complete`);
-        if (onTopicsChange) onTopicsChange();
-      }, 30000);
     } catch (err) {
       setActionError(`Scrape failed for "${topic.name}": ${err.message}`);
-    } finally {
       setScrapingId(null);
     }
   }, [loadTopics, onTopicsChange]);
@@ -194,7 +214,7 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
           {scrapeResult && (
             <div className="topic-scrape-result">
               {scrapingId && <div className="topic-scrape-spinner" />}
-              {scrapeResult}
+              <div className="topic-scrape-text">{scrapeResult}</div>
             </div>
           )}
 
