@@ -1,138 +1,119 @@
 """
-RSS-based news crawler using feedparser.
-Fetches articles from Google News RSS and custom RSS feeds per topic.
+Web search crawler using Google News RSS and Trafilatura full-text extraction.
 """
 
 import json
 import asyncio
+import urllib.request
+import urllib.parse
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from typing import Optional
-from urllib.parse import quote_plus
-import html
+from email.utils import parsedate_to_datetime
 
-import feedparser
+import trafilatura
 from sqlalchemy.orm import Session
 
 from app.models import Article, Topic
-from app.scraper.sources import DEFAULT_RSS_FEEDS
-from app.analysis.classifier import classify_batch
+from app.analysis.classifier import classify_batch, check_article_relevance
 from app.analysis.embeddings import generate_embedding
 from app.logger import logger
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _parse_published(entry: dict) -> Optional[datetime]:
-    """Extract a datetime from a feedparser entry's published_parsed."""
-    pp = entry.get("published_parsed")
-    if pp:
-        try:
-            from email.utils import parsedate_to_datetime
-            from time import mktime
-            # feedparser time_struct can be converted to aware datetime
-            dt = datetime.fromtimestamp(mktime(pp)).astimezone(timezone.utc)
-            return dt
-        except Exception:
-            pass
-    # Fallback: try dateutil on the raw string
-    raw = entry.get("published") or entry.get("updated")
-    if raw:
-        try:
-            from email.utils import parsedate_to_datetime
-            return parsedate_to_datetime(raw).replace(tzinfo=timezone.utc)
-        except Exception:
-            pass
-    return None
-
-
-def _extract_source(entry: dict) -> str:
-    """Try to pull the source name from the entry."""
-    # Google News puts source in <source> tag
-    source_info = entry.get("source", {})
-    if isinstance(source_info, dict) and source_info.get("title"):
-        return source_info["title"]
-    # Fallback: use feed title or empty
-    return entry.get("author", "Unknown")
-
-
-def _clean_html(text: Optional[str]) -> Optional[str]:
-    """Strip very basic HTML tags from description."""
-    if not text:
+def _parse_pub_date(date_str: str) -> Optional[datetime]:
+    if not date_str:
         return None
-    import re
-    clean = re.sub(r"<[^>]+>", "", text)
-    clean = html.unescape(clean)
-    clean = clean.strip()
-    return clean if clean else None
-
-
-def _build_google_news_url(query: str) -> str:
-    """Build a Google News RSS search URL."""
-    encoded = quote_plus(query)
-    return f"https://news.google.com/rss/search?q={encoded}&hl=en-US&gl=US&ceid=US:en"
-
-
-# ---------------------------------------------------------------------------
-# Core fetching
-# ---------------------------------------------------------------------------
-
-def _fetch_feed(url: str) -> list[dict]:
-    """Parse a single RSS feed and return a list of raw article dicts."""
-    articles: list[dict] = []
     try:
-        feed = feedparser.parse(url)
-        for entry in feed.entries:
-            title = entry.get("title", "").strip()
-            link = entry.get("link", "").strip()
-            if not title or not link:
-                continue
-            articles.append({
-                "headline": title,
-                "description": _clean_html(entry.get("summary") or entry.get("description")),
-                "url": link,
-                "source": _extract_source(entry),
-                "published_at": _parse_published(entry),
-            })
-    except Exception as exc:
-        logger.error(f"Error fetching {url}: {exc}")
-    return articles
+        dt = parsedate_to_datetime(date_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
 
 
 async def fetch_articles_for_topic(topic: Topic) -> list[dict]:
     """
-    Fetch articles from Google News RSS (using topic.query) and any custom
-    RSS feeds attached to the topic. Returns deduplicated list of article dicts.
+    Fetch articles via Google News RSS search and extract full text using Trafilatura.
     """
     all_articles: list[dict] = []
     seen_urls: set[str] = set()
 
-    # 1. Google News RSS from query
-    if topic.query:
-        gn_url = _build_google_news_url(topic.query)
-        for art in _fetch_feed(gn_url):
-            if art["url"] not in seen_urls:
-                seen_urls.add(art["url"])
-                all_articles.append(art)
+    if not topic.query:
+        return []
 
-    # 2. Custom RSS feeds for this topic
-    custom_feeds: list[str] = []
-    if topic.rss_feeds:
+    # Map time_filter to Google News 'when:' syntax
+    when_suffix = ""
+    if topic.time_filter == "d":
+        when_suffix = "+when:1d"
+    elif topic.time_filter == "w":
+        when_suffix = "+when:7d"
+    elif topic.time_filter == "m":
+        when_suffix = "+when:30d"
+
+    # We do NOT use hardcoded Reuters/Bloomberg generic feeds anymore.
+    # We only use Google News RSS for the exact specific query.
+    # Also, we explicitly search publisher-scoped Google News for high-quality energy publishers.
+    
+    search_queries = [topic.query]
+    for site in ["reuters.com", "bloomberg.com", "aljazeera.com", "ft.com", "cnbc.com", "wsj.com"]:
+        search_queries.append(f"{topic.query} site:{site}")
+
+    logger.info(f"Topic '{topic.name}': searching Google News with {len(search_queries)} query variations")
+
+    for q in search_queries:
+        encoded_query = urllib.parse.quote_plus(q + when_suffix)
+        url = f"https://news.google.com/rss/search?q={encoded_query}&hl=en-US&gl=US&ceid=US:en"
+        
         try:
-            custom_feeds = json.loads(topic.rss_feeds)
-        except (json.JSONDecodeError, TypeError):
-            custom_feeds = []
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            response = urllib.request.urlopen(req, timeout=10)
+            root = ET.fromstring(response.read())
+            
+            for item in root.findall('.//item'):
+                link = item.findtext('link')
+                if not link or link in seen_urls:
+                    continue
+                seen_urls.add(link)
+                
+                title = item.findtext('title')
+                pub_date_str = item.findtext('pubDate')
+                source = item.findtext('source') or "Unknown"
+                
+                # Extract Full Text
+                full_text = None
+                try:
+                    downloaded = trafilatura.fetch_url(link)
+                    if downloaded:
+                        full_text = trafilatura.extract(downloaded)
+                except Exception as e:
+                    pass
+                    
+                if not full_text or len(full_text) < 100:
+                    # Google News RSS returns some HTML description, we can try to strip it, but it's usually useless.
+                    import re, html
+                    raw_desc = item.findtext('description') or ""
+                    full_text = html.unescape(re.sub(r"<[^>]+>", "", raw_desc)).strip()
 
-    # Default static feeds removed — each topic only scrapes its own sources
+                all_articles.append({
+                    "headline": (title or "").strip(),
+                    "description": full_text,  # We pass full text to the AI instead of a summary!
+                    "url": link,
+                    "source": source,
+                    "published_at": _parse_pub_date(pub_date_str),
+                })
+                
+                # Limit to 15 articles total per topic to ensure fast scraping response
+                if len(all_articles) >= 15:
+                    break
+                    
+        except Exception as exc:
+            logger.error(f"Error fetching Google News RSS for query '{q}': {exc}")
+            
+        if len(all_articles) >= 15:
+            break
 
-    for feed_url in custom_feeds:
-        for art in _fetch_feed(feed_url):
-            if art["url"] not in seen_urls:
-                seen_urls.add(art["url"])
-                all_articles.append(art)
-
-    logger.info(f"Topic '{topic.name}': fetched {len(all_articles)} articles")
+    logger.info(f"Topic '{topic.name}': fetched and extracted {len(all_articles)} full-text articles")
     return all_articles
 
 
@@ -217,6 +198,11 @@ async def run_scraping_cycle(db: Session) -> int:
 
             # STRICT KEYWORD FILTER: Article must match at least 1 keyword
             if kw_list and not matched:
+                continue
+
+            # AI RELEVANCE GATE: Quick yes/no check from gpt-4o-mini
+            if not check_article_relevance(art["headline"], art.get("description"), topic.name):
+                logger.info(f"AI rejected as irrelevant to '{topic.name}': {art['headline'][:60]}")
                 continue
 
             existing_article = _get_existing_article(db, url)

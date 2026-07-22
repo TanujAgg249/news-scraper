@@ -346,11 +346,33 @@
 }
 
 .topic-scrape-result {
-  padding: 8px 12px;
-  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
   border-radius: var(--radius-md);
-  font-size: var(--text-xs);
-  background: rgba(5, 150, 105, 0.08);
-  border: 1px solid rgba(5, 150, 105, 0.2);
-  color: var(--bullish);
+  font-size: var(--text-sm);
+  background: rgba(8, 145, 178, 0.08);
+  border: 1px solid rgba(8, 145, 178, 0.3);
+  color: var(--accent-cyan);
+  animation: slideDown 0.3s var(--ease-spring);
+}
+
+.topic-scrape-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(8, 145, 178, 0.3);
+  border-top-color: var(--accent-cyan);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }

@@ -21,6 +21,7 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
   const [keywords, setKeywords] = useState('');
+  const [timeFilter, setTimeFilter] = useState('d');
   const [rssFeeds, setRssFeeds] = useState('');
 
   // Edit mode state
@@ -29,6 +30,7 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
   const [editQuery, setEditQuery] = useState('');
   const [editKeywords, setEditKeywords] = useState('');
   const [editRssFeeds, setEditRssFeeds] = useState('');
+  const [editTimeFilter, setEditTimeFilter] = useState('d');
   const [editError, setEditError] = useState('');
 
   const loadTopics = useCallback(async () => {
@@ -61,6 +63,7 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
     setEditName(topic.name || '');
     setEditQuery(topic.query || '');
     setEditKeywords((topic.keywords || []).join(', '));
+    setEditTimeFilter(topic.time_filter || 'd');
     setEditRssFeeds((topic.rss_feeds || []).join(', '));
     setEditError('');
   }, []);
@@ -76,6 +79,7 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
         name: editName.trim(),
         query: editQuery.trim(),
         keywords: editKeywords.split(',').map((k) => k.trim()).filter(Boolean),
+        time_filter: editTimeFilter,
         rss_feeds: editRssFeeds.split(',').map((u) => u.trim()).filter(Boolean),
         is_active: editedTopic ? editedTopic.is_active : true,
       });
@@ -151,12 +155,14 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
         name: name.trim(),
         query: query.trim(),
         keywords: keywords.split(',').map((k) => k.trim()).filter(Boolean),
+        time_filter: timeFilter,
         rss_feeds: rssFeeds.split(',').map((u) => u.trim()).filter(Boolean),
         is_active: true,
       });
       setName('');
       setQuery('');
       setKeywords('');
+      setTimeFilter('d');
       setRssFeeds('');
       await loadTopics();
       if (onTopicsChange) onTopicsChange();
@@ -186,7 +192,10 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
             <div className="topic-action-error">{actionError}</div>
           )}
           {scrapeResult && (
-            <div className="topic-scrape-result">{scrapeResult}</div>
+            <div className="topic-scrape-result">
+              {scrapingId && <div className="topic-scrape-spinner" />}
+              {scrapeResult}
+            </div>
           )}
 
           {/* Topic List */}
@@ -232,6 +241,18 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
                           onChange={(e) => setEditKeywords(e.target.value)}
                           placeholder="keyword1, keyword2"
                         />
+                      </div>
+                      <div className="topic-form-group">
+                        <label className="topic-form-label">Time Filter (Historical Fetching)</label>
+                        <select
+                          className="topic-edit-input"
+                          value={editTimeFilter}
+                          onChange={(e) => setEditTimeFilter(e.target.value)}
+                        >
+                          <option value="d">Past Day</option>
+                          <option value="w">Past Week</option>
+                          <option value="m">Past Month</option>
+                        </select>
                       </div>
                       <div className="topic-form-group">
                         <label className="topic-form-label">RSS Feeds (comma-separated)</label>
@@ -359,6 +380,19 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
               />
+            </div>
+
+            <div className="topic-form-group">
+              <label className="topic-form-label">Time Filter (Historical Fetching)</label>
+              <select
+                className="topic-form-input"
+                value={timeFilter}
+                onChange={(e) => setTimeFilter(e.target.value)}
+              >
+                <option value="d">Past Day</option>
+                <option value="w">Past Week</option>
+                <option value="m">Past Month</option>
+              </select>
             </div>
 
             <div className="topic-form-group">

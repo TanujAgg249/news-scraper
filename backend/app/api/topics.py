@@ -39,6 +39,7 @@ def _topic_to_response(topic: Topic, article_count: int = 0) -> TopicResponse:
         query=topic.query,
         rss_feeds=rss_feeds,
         keywords=keywords,
+        time_filter=topic.time_filter,
         macro_summary=topic.macro_summary,
         is_active=topic.is_active,
         created_at=topic.created_at,
@@ -83,6 +84,7 @@ def create_topic(payload: TopicCreate, db: Session = Depends(get_db)):
         query=payload.query,
         rss_feeds=json.dumps(payload.rss_feeds) if payload.rss_feeds else None,
         keywords=json.dumps(payload.keywords) if payload.keywords else None,
+        time_filter=payload.time_filter,
         is_active=payload.is_active,
     )
     db.add(topic)
@@ -115,6 +117,9 @@ def update_topic(topic_id: str, payload: TopicUpdate, db: Session = Depends(get_
 
     if payload.keywords is not None:
         topic.keywords = json.dumps(payload.keywords)
+
+    if payload.time_filter is not None:
+        topic.time_filter = payload.time_filter
 
     if payload.is_active is not None:
         topic.is_active = payload.is_active

@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/graph", tags=["Graph"])
 @router.get("", response_model=GraphResponse)
 def get_graph(
     topic_id: Optional[str] = Query(None, description="Filter by topic UUID"),
-    hours: int = Query(48, ge=1, le=720, description="Look-back window in hours"),
+    hours: int = Query(0, ge=0, description="Look-back window in hours (0 = no limit)"),
     min_importance: float = Query(0, ge=0, le=100, description="Minimum importance score"),
     db: Session = Depends(get_db),
 ):
@@ -30,17 +30,18 @@ def get_graph(
     - Nodes = articles within the time window
     - Links = pairs of articles with cosine similarity > 0.55
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    query = db.query(Article)
 
-    # --- Query articles ---
-    query = db.query(Article).filter(func.coalesce(Article.published_at, Article.created_at) >= cutoff)
+    if hours > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        query = query.filter(func.coalesce(Article.published_at, Article.created_at) >= cutoff)
 
     if topic_id:
         query = query.join(ArticleTopic).filter(ArticleTopic.topic_id == topic_id)
     if min_importance > 0:
         query = query.filter(Article.importance_score >= min_importance)
 
-    articles = query.order_by(func.coalesce(Article.published_at, Article.created_at).desc()).limit(200).all()
+    articles = query.order_by(func.coalesce(Article.published_at, Article.created_at).desc()).limit(500).all()
 
     if not articles:
         return GraphResponse(nodes=[], links=[])

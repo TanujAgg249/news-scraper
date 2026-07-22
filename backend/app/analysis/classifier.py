@@ -36,7 +36,7 @@ def _get_client():
 # ---------------------------------------------------------------------------
 # Classification prompt
 # ---------------------------------------------------------------------------
-SYSTEM_PROMPT = """You are an expert energy market analyst. Given a news headline and description, analyze its directional impact on global crude oil prices (e.g. Brent crude) and its geographic relevance.
+SYSTEM_PROMPT = """You are an expert energy market analyst. Given a news headline and the full text of an article, analyze its directional impact on global crude oil prices (e.g. Brent crude) and its geographic relevance.
 
 Respond ONLY with valid JSON in this exact format:
 {
@@ -58,7 +58,7 @@ Definitions:
 - event_type: "primary" = original event, "reaction" = market/political reaction, "analysis" = expert commentary, "follow-up" = update on previous event
 - location: the primary geographic location this article is about (country or major city). If unclear, use the most relevant country.
 - latitude/longitude: approximate coordinates of the location (use well-known coordinates for countries/cities)
-- entities: a list of key entities mentioned (companies, organizations, countries, people). Maximum 5 entities."""
+- entities: a list of key entities mentioned (companies, pipelines, organizations, countries, people). Extract AS MANY relevant geopolitical and energy entities as you can find in the text. This is critical for graph linkages."""
 
 def _default_classification() -> dict:
     """Return a default classification when OpenAI is unavailable."""
@@ -209,3 +209,43 @@ def generate_macro_summary(articles_text: str) -> Optional[str]:
     except Exception as exc:
         logger.error(f"Error generating macro summary: {exc}")
         return None
+
+
+# ---------------------------------------------------------------------------
+# AI Relevance Gate
+# ---------------------------------------------------------------------------
+
+def check_article_relevance(headline: str, description: Optional[str], topic_name: str) -> bool:
+    """
+    Quick AI check: Is this article genuinely relevant to the given topic?
+    Returns True if relevant, False if not. Defaults to True on failure
+    (so we never accidentally lose good articles).
+    """
+    client = _get_client()
+    if client is None:
+        return True  # fail-open: accept if AI is unavailable
+
+    article_text = headline
+    if description:
+        article_text += f" — {description}"
+
+    prompt = (
+        f"Topic: \"{topic_name}\"\n"
+        f"Article: \"{article_text}\"\n\n"
+        "Is this article DIRECTLY and specifically relevant to the topic above? "
+        "Answer only YES or NO. Nothing else."
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model=settings.OPENAI_CLASSIFIER_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=3,
+        )
+        answer = response.choices[0].message.content.strip().upper()
+        return answer.startswith("YES")
+    except Exception as exc:
+        logger.error(f"Relevance check failed: {exc}")
+        return True  # fail-open: accept on error
+

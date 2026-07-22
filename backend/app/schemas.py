@@ -86,6 +86,7 @@ class TopicCreate(BaseModel):
     query: Optional[str] = Field(None, max_length=500)
     rss_feeds: Optional[List[str]] = None
     keywords: Optional[List[str]] = None
+    time_filter: str = Field("d", max_length=10)
     is_active: bool = True
 
 
@@ -94,6 +95,7 @@ class TopicUpdate(BaseModel):
     query: Optional[str] = Field(None, max_length=500)
     rss_feeds: Optional[List[str]] = None
     keywords: Optional[List[str]] = None
+    time_filter: Optional[str] = Field(None, max_length=10)
     is_active: Optional[bool] = None
 
 
@@ -103,6 +105,7 @@ class TopicResponse(BaseModel):
     query: Optional[str] = None
     rss_feeds: Optional[List[str]] = None
     keywords: Optional[List[str]] = None
+    time_filter: Optional[str] = "d"
     macro_summary: Optional[str] = None
     is_active: bool = True
     created_at: Optional[datetime] = None

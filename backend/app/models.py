@@ -85,6 +85,7 @@ class Topic(Base):
     query = Column(String(500), nullable=True)
     rss_feeds = Column(Text, nullable=True)   # JSON string: ["url1","url2"]
     keywords = Column(Text, nullable=True)    # JSON string: ["kw1","kw2"]
+    time_filter = Column(String(10), default="d") # 'd' (day), 'w' (week), 'm' (month)
     macro_summary = Column(Text, nullable=True) # AI-generated 3-bullet summary
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=_utcnow)

@@ -12,9 +12,12 @@ export function useGraphData(activeTopic) {
   const fetchData = useCallback(async () => {
     try {
       setError(null);
-      const params = { hours: 36 };
+      const params = {};
       if (activeTopic) {
         params.topic_id = activeTopic;
+        params.hours = 0; // No time limit for specific topic (syncs with sidebar)
+      } else {
+        params.hours = 36; // Keep time limit for global graph to prevent clutter
       }
       const data = await fetchGraphData(params);
       setRawData(data);
@@ -41,13 +44,13 @@ export function useGraphData(activeTopic) {
     let nodes = rawData.nodes || [];
     let links = rawData.links || [];
 
-    // Limit to 300 nodes for performance
-    if (nodes.length > 300) {
+    // Limit to 500 nodes for performance
+    if (nodes.length > 500) {
       const sorted = [...nodes].sort(
         (a, b) => (b.importance_score || 0) - (a.importance_score || 0)
       );
-      const kept = new Set(sorted.slice(0, 300).map((n) => n.id));
-      nodes = sorted.slice(0, 300);
+      const kept = new Set(sorted.slice(0, 500).map((n) => n.id));
+      nodes = sorted.slice(0, 500);
       links = links.filter((l) => {
         const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
         const targetId = typeof l.target === 'object' ? l.target.id : l.target;
