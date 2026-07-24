@@ -8,7 +8,6 @@ import OilPriceWidget from './components/OilPriceWidget';
 import TopicManager from './components/TopicManager';
 import ChatAssistant from './components/ChatAssistant';
 import { useGraphData } from './hooks/useGraphData';
-import { useArticles } from './hooks/useArticles';
 import { fetchTopics } from './api/client';
 import './App.css';
 
@@ -23,6 +22,7 @@ function App() {
   const [showTopicManager, setShowTopicManager] = useState(false);
   const [viewMode, setViewMode] = useState('graph');
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [locateNodeId, setLocateNodeId] = useState(null);
 
   // Theme management
   useEffect(() => {
@@ -49,15 +49,9 @@ function App() {
     return () => clearTimeout(searchTimerRef.current);
   }, [search]);
 
-  // Build filters for articles hook
-  const articleFilters = useMemo(
-    () => ({
-      topic_id: activeTopic || undefined,
-      search: debouncedSearch || undefined,
-      oil_impact: impactFilter !== 'All' ? impactFilter : undefined,
-    }),
-    [activeTopic, debouncedSearch, impactFilter]
-  );
+  const activeTopicObj = useMemo(() => {
+    return topics.find(t => t.id === activeTopic);
+  }, [topics, activeTopic]);
 
   // Data hooks
   const {
@@ -65,14 +59,40 @@ function App() {
     loading: graphLoading,
     error: graphError,
     refetch: refetchGraph,
-  } = useGraphData(activeTopic);
+    newNodeIds,
+  } = useGraphData(activeTopic, activeTopicObj?.time_filter);
 
-  const {
-    articles,
-    loading: articlesLoading,
-    hasMore,
-    loadMore,
-  } = useArticles(articleFilters);
+  // Derive sidebar articles from graph nodes (ensures 1:1 sync)
+  const sidebarArticles = useMemo(() => {
+    const nodes = graphData?.nodes || [];
+    let filtered = [...nodes];
+
+    // Apply search filter (client-side)
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      filtered = filtered.filter(n =>
+        (n.headline || '').toLowerCase().includes(q) ||
+        (n.source || '').toLowerCase().includes(q)
+      );
+    }
+
+    // Apply impact filter (client-side)
+    if (impactFilter !== 'All') {
+      filtered = filtered.filter(n => {
+        const impact = n.oil_impact || n.impact || 'Unknown';
+        return impact === impactFilter;
+      });
+    }
+
+    // Sort by published_at descending (freshest first)
+    filtered.sort((a, b) => {
+      const dateA = a.published_at ? new Date(a.published_at).getTime() : 0;
+      const dateB = b.published_at ? new Date(b.published_at).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    return filtered;
+  }, [graphData, debouncedSearch, impactFilter]);
 
 
 
@@ -102,6 +122,7 @@ function App() {
 
   const handleArticleClick = useCallback((article) => {
     setSelectedArticle(article);
+    setLocateNodeId(article.id);
   }, []);
 
   const handleClosePanel = useCallback(() => {
@@ -148,7 +169,7 @@ function App() {
       hour: '2-digit',
       minute: '2-digit',
     });
-  }, [articles]);
+  }, [graphData]);
 
   const stats = useMemo(() => {
     let bullish = 0, bearish = 0, mixed = 0;
@@ -161,9 +182,6 @@ function App() {
     return { bullish, bearish, mixed };
   }, [graphData]);
 
-  const activeTopicObj = useMemo(() => {
-    return topics.find(t => t.id === activeTopic);
-  }, [topics, activeTopic]);
 
   // Check if user has no topics (for welcome state)
   const showWelcome = topics.length === 0 && (!graphData?.nodes?.length);
@@ -234,6 +252,9 @@ function App() {
               graphData={graphData}
               onNodeClick={handleNodeClick}
               selectedNodeId={selectedArticle?.id}
+              locateNodeId={locateNodeId}
+              onLocateComplete={() => setLocateNodeId(null)}
+              newNodeIds={newNodeIds}
               theme={theme}
             />
           ) : (
@@ -265,16 +286,15 @@ function App() {
         <aside className="app-sidebar">
           <OilPriceWidget />
           <ArticleFeed
-            articles={articles}
-            loading={articlesLoading}
-            hasMore={hasMore}
-            onLoadMore={loadMore}
+            articles={sidebarArticles}
+            loading={graphLoading}
             onArticleClick={handleArticleClick}
             selectedArticleId={selectedArticle?.id}
             search={search}
             onSearchChange={handleSearchChange}
             impactFilter={impactFilter}
             onImpactFilterChange={handleImpactFilterChange}
+            newNodeIds={newNodeIds}
           />
         </aside>
       </main>

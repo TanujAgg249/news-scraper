@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+
+const NEW_NODE_GLOW_DURATION = 5 * 60 * 1000; // 5 minutes
 import { fetchGraphData } from '../api/client';
 
 const REFETCH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
-export function useGraphData(activeTopic) {
+export function useGraphData(activeTopic, timeFilter) {
   const [rawData, setRawData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,9 +17,19 @@ export function useGraphData(activeTopic) {
       const params = {};
       if (activeTopic) {
         params.topic_id = activeTopic;
-        params.hours = 0; // No time limit for specific topic (syncs with sidebar)
+        if (timeFilter === 'h') {
+          params.hours = 2; // 2 hour window for 'past hour' to account for slight timezone/publish delays
+        } else if (timeFilter === 'd') {
+          params.hours = 24;
+        } else if (timeFilter === 'w') {
+          params.hours = 168; // 7 * 24
+        } else if (timeFilter === 'm') {
+          params.hours = 720; // 30 * 24
+        } else {
+          params.hours = 48; // fallback
+        }
       } else {
-        params.hours = 36; // Keep time limit for global graph to prevent clutter
+        params.hours = 24; // Keep time limit for global graph to prevent clutter
       }
       const data = await fetchGraphData(params);
       setRawData(data);
@@ -26,7 +38,7 @@ export function useGraphData(activeTopic) {
     } finally {
       setLoading(false);
     }
-  }, [activeTopic]);
+  }, [activeTopic, timeFilter]);
 
   useEffect(() => {
     setLoading(true);
@@ -61,9 +73,18 @@ export function useGraphData(activeTopic) {
     return { nodes, links };
   }, [rawData]);
 
-  // Notifications logic
+  // Notifications + new node tracking
   const seenNodesRef = useRef(new Set());
   const isInitialLoad = useRef(true);
+  const [newNodeIds, setNewNodeIds] = useState(new Set());
+  const glowTimerRef = useRef(null);
+
+  // Reset tracking when topic changes — prevents false "NEW" flags
+  useEffect(() => {
+    isInitialLoad.current = true;
+    setNewNodeIds(new Set());
+    if (glowTimerRef.current) clearTimeout(glowTimerRef.current);
+  }, [activeTopic]);
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -80,24 +101,47 @@ export function useGraphData(activeTopic) {
       return;
     }
 
+    const freshIds = [];
     let alerted = false;
     rawData.nodes.forEach(n => {
       if (!seenNodesRef.current.has(n.id)) {
         seenNodesRef.current.add(n.id);
+        freshIds.push(n.id);
         if (n.importance_score >= 85 && 'Notification' in window && Notification.permission === 'granted') {
           if (!alerted) {
             new Notification('🚨 BREAKING EVENT', { body: n.headline });
-            alerted = true; // prevent spamming multiple notifications at once
+            alerted = true;
           }
         }
       }
     });
+
+    if (freshIds.length > 0) {
+      setNewNodeIds(prev => {
+        const updated = new Set(prev);
+        freshIds.forEach(id => updated.add(id));
+        return updated;
+      });
+
+      // Auto-clear glow after 5 minutes
+      if (glowTimerRef.current) clearTimeout(glowTimerRef.current);
+      glowTimerRef.current = setTimeout(() => {
+        setNewNodeIds(new Set());
+      }, NEW_NODE_GLOW_DURATION);
+    }
   }, [rawData]);
+
+  // Cleanup glow timer on unmount
+  useEffect(() => {
+    return () => {
+      if (glowTimerRef.current) clearTimeout(glowTimerRef.current);
+    };
+  }, []);
 
   const refetch = useCallback(() => {
     setLoading(true);
     fetchData();
   }, [fetchData]);
 
-  return { graphData, loading, error, refetch };
+  return { graphData, loading, error, refetch, newNodeIds };
 }

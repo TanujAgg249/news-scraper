@@ -8,7 +8,7 @@ import {
 import './ArticleFeed.css';
 
 const IMPACT_FILTERS = [
-  { id: 'all', label: 'All' },
+  { id: 'All', label: 'All' },
   { id: 'Bullish', label: 'Bullish', title: 'Puts upward pressure on oil prices' },
   { id: 'Bearish', label: 'Bearish', title: 'Puts downward pressure on oil prices' },
   { id: 'Mixed', label: 'Mixed', title: 'Contains both bullish and bearish signals' },
@@ -35,24 +35,37 @@ function timeAgo(dateStr) {
   }
 }
 
+function isLiveArticle(dateStr) {
+  if (!dateStr) return false;
+  try {
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    return diffMs < 60 * 60 * 1000; // less than 1 hour old
+  } catch {
+    return false;
+  }
+}
+
 const ArticleFeedCard = memo(function ArticleFeedCard({
   article,
-  index,
   isSelected,
+  isNew,
   onClick,
 }) {
   const impact = article.oil_impact || article.impact || 'Unknown';
   const impactColor = getImpactColor(impact);
+  const live = isLiveArticle(article.published_at);
 
   return (
     <div
-      className={`feed-card ${isSelected ? 'selected' : ''}`}
+      className={`feed-card ${isSelected ? 'selected' : ''} ${isNew ? 'new-article' : ''}`}
       style={{
-        borderLeftColor: impactColor,
+        borderLeftColor: isNew ? '#FFD700' : impactColor,
       }}
       onClick={() => onClick(article)}
     >
       <div className="feed-card-headline">
+        {isNew && <span className="feed-new-badge">NEW</span>}
+        {live && !isNew && <span className="feed-live-badge">🔴 LIVE</span>}
         {article.headline || article.title || 'Untitled'}
       </div>
       <div className="feed-card-meta">
@@ -78,18 +91,19 @@ const ArticleFeedCard = memo(function ArticleFeedCard({
 const ArticleFeed = memo(function ArticleFeed({
   articles,
   loading,
-  hasMore,
-  onLoadMore,
   onArticleClick,
   selectedArticleId,
   search,
   onSearchChange,
   impactFilter,
   onImpactFilterChange,
+  newNodeIds,
 }) {
   const handleSearch = useCallback((e) => {
     onSearchChange(e.target.value);
   }, [onSearchChange]);
+
+  const newSet = newNodeIds || new Set();
 
   return (
     <div className="article-feed">
@@ -141,16 +155,11 @@ const ArticleFeed = memo(function ArticleFeed({
               <ArticleFeedCard
                 key={article.id || index}
                 article={article}
-                index={index}
                 isSelected={selectedArticleId && article.id === selectedArticleId}
+                isNew={newSet.has(article.id)}
                 onClick={onArticleClick}
               />
             ))}
-            {hasMore && (
-              <button className="feed-load-more" onClick={onLoadMore}>
-                Load More
-              </button>
-            )}
           </>
         )}
       </div>

@@ -153,7 +153,7 @@ def _run_background_scrape(topic_id: str):
     from app.database import SessionLocal
     import asyncio
     from app.scraper.crawler import fetch_articles_for_topic
-    from app.analysis.classifier import classify_batch
+    from app.analysis.classifier import classify_batch, check_article_relevance
     from app.analysis.embeddings import generate_embedding
     
     db = SessionLocal()
@@ -194,6 +194,15 @@ def _run_background_scrape(topic_id: str):
                 if kw.lower() in combined_text:
                     matched.append(kw)
             matched_str = ", ".join(matched) if matched else None
+            
+            # STRICT KEYWORD FILTER
+            if kw_list and not matched:
+                continue
+                
+            # AI RELEVANCE GATE
+            if not check_article_relevance(art["headline"], art.get("description"), topic.name):
+                logger.info(f"AI rejected as irrelevant to '{topic.name}': {art['headline'][:60]}")
+                continue
                     
             if existing:
                 assoc_exists = db.query(ArticleTopic).filter(

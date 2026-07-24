@@ -90,7 +90,7 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
     } catch (err) {
       setEditError(err.message || 'Failed to update topic.');
     }
-  }, [editingId, editName, editQuery, editKeywords, editRssFeeds, topics, loadTopics, onTopicsChange]);
+  }, [editingId, editName, editQuery, editKeywords, editRssFeeds, editTimeFilter, topics, loadTopics, onTopicsChange]);
 
   const handleEditCancel = useCallback(() => {
     setEditingId(null);
@@ -269,6 +269,7 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
                           value={editTimeFilter}
                           onChange={(e) => setEditTimeFilter(e.target.value)}
                         >
+                          <option value="h">Past Hour</option>
                           <option value="d">Past Day</option>
                           <option value="w">Past Week</option>
                           <option value="m">Past Month</option>
@@ -409,6 +410,7 @@ const TopicManager = memo(function TopicManager({ onClose, onTopicsChange }) {
                 value={timeFilter}
                 onChange={(e) => setTimeFilter(e.target.value)}
               >
+                <option value="h">Past Hour</option>
                 <option value="d">Past Day</option>
                 <option value="w">Past Week</option>
                 <option value="m">Past Month</option>

@@ -23,6 +23,9 @@ const NewsGraph3D = memo(function NewsGraph3D({
   graphData,
   onNodeClick,
   selectedNodeId,
+  locateNodeId,
+  onLocateComplete,
+  newNodeIds,
   loading,
   error,
   onRetry,
@@ -39,6 +42,9 @@ const NewsGraph3D = memo(function NewsGraph3D({
   // Track pinned (dragged) node positions
   const [hasPinnedNodes, setHasPinnedNodes] = useState(false);
   const pinnedSetRef = useRef(new Set());
+  // Animation clock for golden glow pulsation
+  const clockRef = useRef(new THREE.Clock());
+  const glowMeshesRef = useRef([]);
 
   // Resize observer
   useEffect(() => {
@@ -103,6 +109,43 @@ const NewsGraph3D = memo(function NewsGraph3D({
       }
     };
   }, [graphData]);
+
+  // Locate node: fly camera to a specific node when locateNodeId changes
+  useEffect(() => {
+    if (!locateNodeId || !graphRef.current || !graphData?.nodes) return;
+    const node = graphData.nodes.find(n => n.id === locateNodeId);
+    if (!node || node.x === undefined) return;
+
+    const fg = graphRef.current;
+    const distance = 120;
+    const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z || 0);
+    fg.cameraPosition(
+      { x: node.x * distRatio, y: node.y * distRatio, z: (node.z || 0) * distRatio },
+      { x: node.x, y: node.y, z: node.z || 0 },
+      1000
+    );
+
+    if (onLocateComplete) {
+      setTimeout(() => onLocateComplete(), 1100);
+    }
+  }, [locateNodeId, graphData, onLocateComplete]);
+
+  // Pulsation animation loop for golden glow meshes
+  useEffect(() => {
+    let frameId;
+    const animate = () => {
+      const elapsed = clockRef.current.getElapsedTime();
+      const opacity = 0.15 + 0.2 * Math.abs(Math.sin(elapsed * 2));
+      glowMeshesRef.current.forEach(mesh => {
+        if (mesh.material) {
+          mesh.material.opacity = opacity;
+        }
+      });
+      frameId = requestAnimationFrame(animate);
+    };
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, []);
 
   // Whenever graphData changes, we need to tell ForceGraph to update nodes
   // because their properties (like oil_impact) might have changed from a refetch.
@@ -221,8 +264,9 @@ const NewsGraph3D = memo(function NewsGraph3D({
       const size = mapImportance(node.importance_score);
       const finalSize = node.event_type === 'primary' ? size * 1.5 : size;
       const isSelected = selectedNodeId && node.id === selectedNodeId;
+      const isNew = newNodeIds && newNodeIds.has(node.id);
       const sizeCat = getSizeCategory(finalSize);
-      const cacheKey = `${impact}-${sizeCat}-${isSelected}`;
+      const cacheKey = `${impact}-${sizeCat}-${isSelected}-${isNew}`;
 
       let cached = cacheRef.current.get(cacheKey);
       if (!cached) {
@@ -246,6 +290,15 @@ const NewsGraph3D = memo(function NewsGraph3D({
           });
         }
 
+        if (isNew) {
+          cached.newGlowGeometry = new THREE.SphereGeometry(finalSize * 1.1, 16, 12);
+          cached.newGlowMaterial = new THREE.MeshBasicMaterial({
+            color: new THREE.Color('#FFD700'),
+            transparent: true,
+            opacity: 0.25,
+          });
+        }
+
         cacheRef.current.set(cacheKey, cached);
       }
 
@@ -256,9 +309,15 @@ const NewsGraph3D = memo(function NewsGraph3D({
         mesh.add(glowMesh);
       }
 
+      if (isNew && cached.newGlowGeometry && cached.newGlowMaterial) {
+        const newGlowMesh = new THREE.Mesh(cached.newGlowGeometry, cached.newGlowMaterial.clone());
+        mesh.add(newGlowMesh);
+        glowMeshesRef.current.push(newGlowMesh);
+      }
+
       return mesh;
     },
-    [selectedNodeId, updateTrigger]
+    [selectedNodeId, updateTrigger, newNodeIds]
   );
 
   const linkColor = useCallback((link) => {
