@@ -48,13 +48,13 @@ async def fetch_articles_for_topic(topic: Topic, progress_cb=None) -> list[dict]
     # Map time_filter to Google News 'when:' syntax
     when_suffix = ""
     if topic.time_filter == "h":
-        when_suffix = "+when:1h"
+        when_suffix = " when:1h"
     elif topic.time_filter == "d":
-        when_suffix = "+when:1d"
+        when_suffix = " when:1d"
     elif topic.time_filter == "w":
-        when_suffix = "+when:7d"
+        when_suffix = " when:7d"
     elif topic.time_filter == "m":
-        when_suffix = "+when:30d"
+        when_suffix = " when:30d"
 
     # We do NOT use hardcoded Reuters/Bloomberg generic feeds anymore.
     # We only use Google News RSS for the exact specific query.
