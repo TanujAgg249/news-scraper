@@ -23,8 +23,21 @@ def fetch_oil_price() -> Optional[dict]:
         info = ticker.fast_info
 
         # Try fast_info first
-        price = float(info.get("lastPrice", 0) or info.get("last_price", 0))
-        prev_close = float(info.get("previousClose", 0) or info.get("previous_close", 0))
+        price = 0.0
+        prev_close = 0.0
+        try:
+            # Newer yfinance versions use properties
+            if hasattr(info, 'last_price'):
+                price = float(info.last_price)
+            elif hasattr(info, 'get'):
+                price = float(info.get("lastPrice", 0) or info.get("last_price", 0))
+            
+            if hasattr(info, 'previous_close'):
+                prev_close = float(info.previous_close)
+            elif hasattr(info, 'get'):
+                prev_close = float(info.get("previousClose", 0) or info.get("previous_close", 0))
+        except Exception as e:
+            logger.warning(f"fast_info failed: {e}")
 
         # Fallback to history if fast_info fails to get price
         if not price or price == 0:

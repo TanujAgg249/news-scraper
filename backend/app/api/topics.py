@@ -2,8 +2,10 @@
 API router: Topics — CRUD endpoints for managing news topics.
 """
 
+import asyncio
 import json
 from typing import Optional
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session

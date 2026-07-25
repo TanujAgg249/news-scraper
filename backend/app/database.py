@@ -5,7 +5,7 @@ Uses synchronous SQLite for the prototype.
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
-from typing import Generator
+from typing import Generator, Any
 
 from app.config import settings
 
@@ -17,7 +17,7 @@ if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
 connect_args = {}
-engine_kwargs = {"echo": False, "pool_pre_ping": True}
+engine_kwargs: dict[str, Any] = {"echo": False, "pool_pre_ping": True}
 
 if db_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
