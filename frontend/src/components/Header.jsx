@@ -1,24 +1,25 @@
 import React, { memo, useCallback } from 'react';
 import './Header.css';
 
+const TIME_RANGES = [
+  { label: '1H', hours: 1 },
+  { label: '6H', hours: 6 },
+  { label: '24H', hours: 24 },
+  { label: '48H', hours: 48 },
+  { label: 'ALL', hours: 0 },
+];
+
 const Header = memo(function Header({
-  topics,
-  activeTopic,
-  onTopicChange,
-  onManageTopics,
   theme,
   onThemeToggle,
+  onManageTopics,
+  timeRange,
+  onTimeRangeChange,
 }) {
-  const handleTopicClick = useCallback(
-    (topicId) => {
-      if (activeTopic === topicId) {
-        onTopicChange(null);
-      } else {
-        onTopicChange(topicId);
-      }
-    },
-    [activeTopic, onTopicChange]
-  );
+  const handleTimeClick = useCallback((hours) => {
+    // Toggle off if already selected
+    onTimeRangeChange(timeRange === hours ? null : hours);
+  }, [timeRange, onTimeRangeChange]);
 
   return (
     <header className="header">
@@ -29,22 +30,22 @@ const Header = memo(function Header({
         </div>
       </div>
 
+      {/* Time Range Selector */}
       <nav className="header-center">
-        <button
-          className={`topic-pill ${activeTopic === null ? 'active' : ''}`}
-          onClick={() => onTopicChange(null)}
-        >
-          <span className="topic-pill-dot" />
-          All
-        </button>
-        {topics.map((topic) => (
+        <span className="time-range-label">
+          <svg className="time-range-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        </span>
+        {TIME_RANGES.map(({ label, hours }) => (
           <button
-            key={topic.id}
-            className={`topic-pill ${activeTopic === topic.id ? 'active' : ''}`}
-            onClick={() => handleTopicClick(topic.id)}
+            key={hours}
+            className={`time-range-btn ${timeRange === hours ? 'active' : ''}`}
+            onClick={() => handleTimeClick(hours)}
+            title={`Show articles from the past ${hours} hour${hours > 1 ? 's' : ''}`}
           >
-            <span className="topic-pill-dot" />
-            {topic.name}
+            {label}
           </button>
         ))}
       </nav>
@@ -53,12 +54,9 @@ const Header = memo(function Header({
         <button className="header-btn theme-toggle" onClick={onThemeToggle} aria-label="Toggle theme">
           <span className="header-btn-icon">{theme === 'dark' ? '☀️' : '🌙'}</span>
         </button>
-        <button
-          className={`header-btn ${topics.length === 0 ? 'header-btn-cta' : ''}`}
-          onClick={onManageTopics}
-        >
-          <span className="header-btn-icon">{topics.length === 0 ? '＋' : '⚙'}</span>
-          {topics.length === 0 ? 'Add Topics' : 'Topics'}
+        <button className="header-btn" onClick={onManageTopics}>
+          <span className="header-btn-icon">⚙</span>
+          Topics
         </button>
       </div>
     </header>

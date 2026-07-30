@@ -97,7 +97,7 @@ def get_graph(
         sim_matrix = compute_similarity_matrix(valid_embeddings)
 
         # Extract pairs above threshold or with shared entities
-        threshold = 0.55
+        threshold = 0.72
         n = len(valid_indices)
         for i in range(n):
             for j in range(i + 1, n):
@@ -110,8 +110,8 @@ def get_graph(
                 target_entities = set(target_node.entities or [])
                 shared_entities = source_entities.intersection(target_entities)
                 
-                # Boost similarity by 0.15 for each shared entity
-                entity_boost = len(shared_entities) * 0.15
+                # Boost similarity by 0.05 for each shared entity
+                entity_boost = len(shared_entities) * 0.05
                 total_sim = sim + entity_boost
 
                 # If total sim clears threshold, link them!

@@ -90,10 +90,15 @@ const NewsGraph3D = memo(function NewsGraph3D({
 
   const dismissHint = useCallback(() => setShowHint(false), []);
 
-  // Auto-rotate camera + pause on interaction
+  // Auto-rotate camera + pause on interaction + configure d3 forces
   useEffect(() => {
     const fg = graphRef.current;
     if (!fg) return;
+
+    // Configure d3 forces for readable clusters without excessive spread
+    fg.d3Force('charge').strength(-50);
+    fg.d3Force('link').distance(40);
+    fg.d3Force('center').strength(0.15);
 
     const controls = fg.controls();
     if (controls) {
@@ -101,6 +106,8 @@ const NewsGraph3D = memo(function NewsGraph3D({
       controls.autoRotateSpeed = 0.5;
       controls.enableDamping = true;
       controls.dampingFactor = 0.25;
+      controls.zoomSpeed = 3.0;
+      controls.panSpeed = 2.0;
     }
 
     const renderer = fg.renderer();
@@ -290,7 +297,7 @@ const NewsGraph3D = memo(function NewsGraph3D({
 
       let cached = cacheRef.current.get(cacheKey);
       if (!cached) {
-        const geometry = new THREE.SphereGeometry(finalSize * 0.6, 16, 12);
+        const geometry = new THREE.SphereGeometry(finalSize * 0.6, 12, 8);
         const material = new THREE.MeshPhongMaterial({
           color: new THREE.Color(color),
           emissive: new THREE.Color(color),
@@ -302,7 +309,7 @@ const NewsGraph3D = memo(function NewsGraph3D({
         cached = { geometry, material };
 
         if (isSelected) {
-          cached.glowGeometry = new THREE.SphereGeometry(finalSize * 0.9, 16, 12);
+          cached.glowGeometry = new THREE.SphereGeometry(finalSize * 0.9, 12, 8);
           cached.glowMaterial = new THREE.MeshBasicMaterial({
             color: new THREE.Color(color),
             transparent: true,
@@ -311,7 +318,7 @@ const NewsGraph3D = memo(function NewsGraph3D({
         }
 
         if (isNew) {
-          cached.newGlowGeometry = new THREE.SphereGeometry(finalSize * 1.1, 16, 12);
+          cached.newGlowGeometry = new THREE.SphereGeometry(finalSize * 1.1, 12, 8);
           cached.newGlowMaterial = new THREE.MeshBasicMaterial({
             color: new THREE.Color('#FFD700'),
             transparent: true,
@@ -413,14 +420,10 @@ const NewsGraph3D = memo(function NewsGraph3D({
           linkColor={linkColor}
           linkWidth={linkWidth}
           linkOpacity={0.4}
-          linkDirectionalParticles={2}
-          linkDirectionalParticleSpeed={0.003}
-          linkDirectionalParticleWidth={1.5}
-          linkDirectionalParticleColor={() => 'rgba(100, 180, 255, 0.6)'}
-          d3AlphaDecay={0.03}
-          d3VelocityDecay={0.4}
-          warmupTicks={50}
-          cooldownTicks={100}
+          d3AlphaDecay={0.02}
+          d3VelocityDecay={0.3}
+          warmupTicks={80}
+          cooldownTicks={200}
           enableNodeDrag={true}
           showNavInfo={false}
         />

@@ -6,6 +6,7 @@ import ArticlePanel from './components/ArticlePanel';
 import ArticleFeed from './components/ArticleFeed';
 import OilPriceWidget from './components/OilPriceWidget';
 import TopicManager from './components/TopicManager';
+import TopicSidebar from './components/TopicSidebar';
 import ChatAssistant from './components/ChatAssistant';
 import { useGraphData } from './hooks/useGraphData';
 import { fetchTopics } from './api/client';
@@ -23,6 +24,7 @@ function App() {
   const [viewMode, setViewMode] = useState('graph');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [locateNodeId, setLocateNodeId] = useState(null);
+  const [timeRange, setTimeRange] = useState(null); // null = use topic default, or hours number (1, 6, 24, 48)
 
   // Theme management
   useEffect(() => {
@@ -60,7 +62,7 @@ function App() {
     error: graphError,
     refetch: refetchGraph,
     newNodeIds,
-  } = useGraphData(activeTopic, activeTopicObj?.time_filter);
+  } = useGraphData(activeTopic, activeTopicObj?.time_filter, timeRange);
 
   // Derive sidebar articles from graph nodes (ensures 1:1 sync)
   const sidebarArticles = useMemo(() => {
@@ -190,16 +192,23 @@ function App() {
     <div className="app">
       {/* Header */}
       <Header
-        topics={topics}
-        activeTopic={activeTopic}
-        onTopicChange={handleTopicChange}
-        onManageTopics={handleOpenTopicManager}
         theme={theme}
         onThemeToggle={toggleTheme}
+        onManageTopics={handleOpenTopicManager}
+        timeRange={timeRange}
+        onTimeRangeChange={setTimeRange}
       />
 
       {/* Main Content */}
       <main className="app-main">
+        {/* Left Topic Sidebar */}
+        <TopicSidebar
+          topics={topics}
+          activeTopic={activeTopic}
+          onTopicChange={handleTopicChange}
+          onManageTopics={handleOpenTopicManager}
+        />
+
         {/* 3D Graph / Globe */}
         <section className="app-graph">
           {/* Welcome State for New Users */}

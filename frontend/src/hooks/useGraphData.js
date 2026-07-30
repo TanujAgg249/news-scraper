@@ -5,7 +5,7 @@ import { fetchGraphData } from '../api/client';
 
 const REFETCH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
-export function useGraphData(activeTopic, timeFilter) {
+export function useGraphData(activeTopic, timeFilter, hoursOverride) {
   const [rawData, setRawData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,6 +17,12 @@ export function useGraphData(activeTopic, timeFilter) {
       const params = {};
       if (activeTopic) {
         params.topic_id = activeTopic;
+      }
+
+      // hoursOverride from the time-range selector takes priority
+      if (hoursOverride != null) {
+        params.hours = hoursOverride;
+      } else if (activeTopic) {
         if (timeFilter === 'h') {
           params.hours = 2; // 2 hour window for 'past hour' to account for slight timezone/publish delays
         } else if (timeFilter === 'd') {
@@ -38,7 +44,7 @@ export function useGraphData(activeTopic, timeFilter) {
     } finally {
       setLoading(false);
     }
-  }, [activeTopic, timeFilter]);
+  }, [activeTopic, timeFilter, hoursOverride]);
 
   useEffect(() => {
     setLoading(true);
