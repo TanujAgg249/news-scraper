@@ -191,6 +191,13 @@
   font-weight: 600;
 }
 
+.graph-tooltip-time {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
 .graph-tooltip-hint {
   margin-top: 4px;
   font-size: 10px;

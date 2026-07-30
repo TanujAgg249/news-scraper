@@ -4,9 +4,28 @@ Pydantic v2 request / response schemas for the EnergyPulse API.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _serialize_utc(v: Optional[datetime]) -> Optional[str]:
+    """Ensure naive datetimes are tagged as UTC before serialization.
+
+    The database stores all timestamps in UTC but without timezone info.
+    By attaching ``timezone.utc`` we guarantee the ISO string ends with
+    ``+00:00`` (or ``Z``-equivalent) so that JavaScript's ``new Date()``
+    interprets them correctly regardless of the user's local timezone.
+    """
+    if v is None:
+        return None
+    if v.tzinfo is None:
+        v = v.replace(tzinfo=timezone.utc)
+    return v.isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -37,6 +56,11 @@ class ArticleResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_serializer("published_at", "fetched_at", "created_at")
+    @classmethod
+    def _utc_dt(cls, v: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc(v)
+
 
 class ArticleListResponse(BaseModel):
     articles: List[ArticleResponse]
@@ -64,6 +88,11 @@ class GraphNode(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     entities: Optional[List[str]] = None
+
+    @field_serializer("published_at")
+    @classmethod
+    def _utc_dt(cls, v: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc(v)
 
 
 class GraphLink(BaseModel):
@@ -113,6 +142,11 @@ class TopicResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_serializer("created_at")
+    @classmethod
+    def _utc_dt(cls, v: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc(v)
+
 
 # ---------------------------------------------------------------------------
 # Oil Price
@@ -125,6 +159,11 @@ class OilPriceEntry(BaseModel):
     fetched_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("fetched_at")
+    @classmethod
+    def _utc_dt(cls, v: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc(v)
 
 
 class OilPriceResponse(BaseModel):

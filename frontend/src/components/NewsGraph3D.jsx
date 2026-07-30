@@ -7,6 +7,25 @@ import './NewsGraph3D.css';
 const NODE_MIN_SIZE = 3;
 const NODE_MAX_SIZE = 18;
 
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHrs = Math.floor(diffMins / 60);
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    const diffDays = Math.floor(diffHrs / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch {
+    return '';
+  }
+}
+
 function mapImportance(score) {
   const s = score || 0;
   const clamped = Math.max(0, Math.min(1, s / 10));
@@ -171,6 +190,7 @@ const NewsGraph3D = memo(function NewsGraph3D({
         headline: node.headline || node.title || 'Untitled',
         source: node.source || 'Unknown',
         impact: node.oil_impact || node.impact || 'Unknown',
+        published_at: node.published_at || null,
         url: node.url || null,
         x: 0,
         y: 0,
@@ -454,6 +474,9 @@ const NewsGraph3D = memo(function NewsGraph3D({
               {getImpactEmoji(tooltip.impact)} {tooltip.impact}
             </span>
           </div>
+          {tooltip.published_at && (
+            <div className="graph-tooltip-time">🕐 {timeAgo(tooltip.published_at)}</div>
+          )}
           <div className="graph-tooltip-hint">Click to read →</div>
         </div>
       )}
